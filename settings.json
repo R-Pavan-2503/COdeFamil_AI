@@ -1,0 +1,33 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "User Id=postgres.zhagdkiukasamywvhvvl;Password=p@V@n*IIV0III;Server=aws-1-ap-northeast-2.pooler.supabase.com;Port=5432;Database=postgres"
+  },
+  "GitHub": {
+    "AppId": "2322543",
+    "ClientId": "Ov23li17bMzEo9RFMCSD",
+    "ClientSecret": "d1ca01a01f9dd44614dabe1ae314bbb7f129b4ef",
+    "WebhookSecret": "my_super_secret_123",
+    "PrivateKeyPath": "/secrets/codefamily.pem"
+  },
+  "GitHubApp": {
+    "AppId": "2322543",
+    "ClientId": "Iv23lisygbizqMOjydvx",
+    "ClientSecret": "0f21958a56647a5dccf866331b27e16e4789b6a9",
+    "PrivateKeyPath": "/secrets/codefamily.pem"
+  },
+  "Gemini": {
+    "ApiKey": "AIzaSyDiqlAlRgEtydErVxVO-b0ZFdgjFK9hg10"
+  },
+  "Supabase": {
+    "Url": "https://zhagdkiukasamywvhvvl.supabase.co",
+    "ServiceKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoYWdka2l1a2FzYW15d3ZodnZsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzYxMjc5NywiZXhwIjoyMDc5MTg4Nzk3fQ.zE8dSRSMBLPy7Jqjs4WERhLtBsCx2sNLdj0cDkTesHw"
+  },
+  "Slack": {
+    "BotToken": "xoxb-9970191781841-9970206045985-VLQTHLjYq5vrVype4uHw8vaa"
+  },
+  "Sidecar": {
+    "Url": "http://localhost:3002"
+  },
+  "WebhookUrl": "https://conflagrant-alleen-balletic.ngrok-free.dev",
+  "CloneBasePath": "./repos"
+}
