@@ -116,6 +116,12 @@ public class AnalysisService : IAnalysisService
             _logger.LogInformation("🧮 Calculating semantic ownership scores...");
             await CalculateAllFileOwnership(repositoryId);
 
+            // Step 4.5: Final dependency reconciliation at HEAD
+            // Re-analyze all files at the latest commit to catch dependencies
+            // where the target file was added after the importer
+            _logger.LogInformation("🔄 Reconciling dependencies at HEAD...");
+            await ReconcileDependenciesAtHead(repo, repositoryId);
+
             // Step 5: Calculate dependency graph and blast radius
             _logger.LogInformation("📊 Calculating dependency graph and blast radius...");
             await CalculateDependencyMetrics(repositoryId);
@@ -352,6 +358,81 @@ public class AnalysisService : IAnalysisService
         }
     }
 
+
+    // ---------------------------------------------------------------------
+    // Reconcile dependencies at HEAD - catch any missing dependencies
+    // where target files were added after their importers
+    // ---------------------------------------------------------------------
+    private async Task ReconcileDependenciesAtHead(LibGitRepository repo, Guid repositoryId)
+    {
+        var headCommit = repo.Head.Tip;
+        if (headCommit == null)
+        {
+            _logger.LogWarning("No HEAD commit found, skipping reconciliation");
+            return;
+        }
+
+        var allFiles = await _db.GetFilesByRepository(repositoryId);
+        _logger.LogInformation($"🔍 Reconciling {allFiles.Count} files at HEAD commit {headCommit.Sha[..7]}");
+
+        int reconciledCount = 0;
+        foreach (var file in allFiles)
+        {
+            try
+            {
+                // Get file content at HEAD
+                var content = _repoService.GetFileContentAtCommit(repo, headCommit.Sha, file.FilePath);
+                if (content == null) continue;
+
+                var language = _repoService.GetLanguageFromPath(file.FilePath);
+                if (language == "unknown") continue;
+
+                // Extract imports using ParseCode
+                var parseResult = await _treeSitter.ParseCode(content, language);
+                if (parseResult?.Imports == null || parseResult.Imports.Count == 0) continue;
+
+                // Try to resolve each import and create missing dependencies
+                foreach (var import in parseResult.Imports)
+                {
+                    try
+                    {
+                        var targetPath = await ResolveImportPathAsync(file.FilePath, import.Module, language, repositoryId);
+                        if (targetPath != null)
+                        {
+                            var targetFile = await _db.GetFileByPath(repositoryId, targetPath);
+                            if (targetFile != null)
+                            {
+                                // Check if dependency already exists
+                                var existingDeps = await _db.GetDependenciesForFile(file.Id);
+                                if (!existingDeps.Any(d => d.TargetFileId == targetFile.Id))
+                                {
+                                    // Create the missing dependency
+                                    await _db.CreateDependency(new Dependency
+                                    {
+                                        SourceFileId = file.Id,
+                                        TargetFileId = targetFile.Id
+                                    });
+                                    _logger.LogInformation($"  ✨ Reconciled: {file.FilePath} -> {targetPath}");
+                                    reconciledCount++;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning($"  ⚠️ Error reconciling import '{import.Module}' in {file.FilePath}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"  ⚠️ Error reconciling file {file.FilePath}: {ex.Message}");
+            }
+        }
+
+        _logger.LogInformation($"✅ Reconciled {reconciledCount} missing dependencies");
+    }
+
     // ---------------------------------------------------------------------
     // Register GitHub webhook via the GitHub service
     // ---------------------------------------------------------------------
@@ -373,6 +454,8 @@ private async Task RegisterWebhook(string owner, string repo)
 }
 
 
+
+
     //---------------------------------------------------------------------
     // Helper: Resolve import paths using repository files from database
     // ---------------------------------------------------------------------
@@ -380,28 +463,58 @@ private async Task RegisterWebhook(string owner, string repo)
     {
         // Normalize paths
         sourceFile = sourceFile.Replace("\\", "/");
-        var sourceDir = Path.GetDirectoryName(sourceFile)?.Replace("\\", "/") ?? "";
+        var sourceDir = Path.GetDirectoryName(sourceFile)?.Replace("\\", "/");
         
-        // _logger.LogInformation($"    Resolving '{importModule}' from '{sourceDir}' (Language: {language})");
+        // Handle empty sourceDir (file in root directory)
+        if (string.IsNullOrEmpty(sourceDir))
+        {
+            sourceDir = "";
+        }
+        
+        _logger.LogInformation($"    Resolving '{importModule}' from '{sourceDir}' (Language: {language})");
+
 
         string? targetPath = null;
 
         // Handle relative imports (./ or ../)
         if (importModule.StartsWith("./") || importModule.StartsWith("../"))
         {
-            // Use a fake root to resolve relative paths cleanly
-            var fakeRoot = "/root";
-            var combined = Path.Combine(fakeRoot, sourceDir, importModule);
-            var resolved = Path.GetFullPath(combined).Replace("\\", "/");
-            
-            // Remove the fake root to get back the repo-relative path
-            if (resolved.StartsWith(fakeRoot))
+            // Normalize: combine source directory with import path
+            string combinedPath;
+            if (string.IsNullOrEmpty(sourceDir))
             {
-                targetPath = resolved.Substring(fakeRoot.Length).TrimStart('/');
+                // File is in root, just use the import path
+                combinedPath = importModule;
             }
             else
             {
-                // Path went above root (e.g. ../../../)
+                // Combine with source directory
+                combinedPath = sourceDir + "/" + importModule;
+            }
+            
+            // Use Path.GetFullPath with a fake root to resolve .. and .
+            var fakeRoot = "C:\\fakeroot";  // Use Windows path for GetFullPath
+            var combined = Path.Combine(fakeRoot, combinedPath.Replace("/", "\\"));
+            
+            try
+            {
+                var resolved = Path.GetFullPath(combined);
+                
+                // Check if path went above root
+                if (!resolved.StartsWith(fakeRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    targetPath = null;  // Path escaped root
+                }
+                else
+                {
+                    // Remove fake root and normalize to forward slashes
+                    targetPath = resolved.Substring(fakeRoot.Length)
+                        .TrimStart('\\', '/')
+                        .Replace("\\", "/");
+                }
+            }
+            catch
+            {
                 targetPath = null;
             }
         }
@@ -436,6 +549,14 @@ private async Task RegisterWebhook(string owner, string repo)
             // Other languages - only handle relative imports for now
             return null;
         }
+
+        // If targetPath is null, we couldn't resolve it
+        if (targetPath == null)
+        {
+            return null;
+        }
+
+        _logger.LogInformation($"    → Resolved to targetPath: '{targetPath}'");
 
         // Get all repository files
         var repoFiles = await _db.GetFilesByRepository(repositoryId);

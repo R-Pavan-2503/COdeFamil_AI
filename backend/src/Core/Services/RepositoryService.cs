@@ -75,8 +75,30 @@ public class RepositoryService : IRepositoryService
             return changes.Select(c => c.Path).ToList();
         }
 
-        // First commit - all files are new
-        return commit.Tree.Select(entry => entry.Path).ToList();
+        // First commit - all files are new - recursively enumerate all blobs
+        var allFiles = new List<string>();
+        EnumerateTreeRecursive(commit.Tree, "", allFiles);
+        return allFiles;
+    }
+
+    private void EnumerateTreeRecursive(Tree tree, string basePath, List<string> files)
+    {
+        foreach (var entry in tree)
+        {
+            var fullPath = string.IsNullOrEmpty(basePath) ? entry.Name : $"{basePath}/{entry.Name}";
+            
+            if (entry.TargetType == TreeEntryTargetType.Blob)
+            {
+                // It's a file
+                files.Add(fullPath);
+            }
+            else if (entry.TargetType == TreeEntryTargetType.Tree)
+            {
+                // It's a directory - recurse into it
+                var subTree = (Tree)entry.Target;
+                EnumerateTreeRecursive(subTree, fullPath, files);
+            }
+        }
     }
 
     public async Task FetchRepository(string owner, string repoName)
