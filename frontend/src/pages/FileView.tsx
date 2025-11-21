@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../utils/api';
+import DependencyGraph from '../components/DependencyGraph';
+import BackButton from '../components/BackButton';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
 
 export default function FileView() {
     const { fileId } = useParams<{ fileId: string }>();
@@ -10,6 +15,41 @@ export default function FileView() {
     const [activeTab, setActiveTab] = useState<'code' | 'analysis'>('code');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
+
+    // Helper function to get language from file path
+    const getLanguageFromPath = (filePath: string): string => {
+        const extension = filePath.split('.').pop()?.toLowerCase();
+        const languageMap: { [key: string]: string } = {
+            'js': 'javascript',
+            'jsx': 'jsx',
+            'ts': 'typescript',
+            'tsx': 'tsx',
+            'py': 'python',
+            'java': 'java',
+            'c': 'c',
+            'cpp': 'cpp',
+            'cs': 'csharp',
+            'go': 'go',
+            'rs': 'rust',
+            'rb': 'ruby',
+            'php': 'php',
+            'swift': 'swift',
+            'kt': 'kotlin',
+            'dart': 'dart',
+            'html': 'html',
+            'css': 'css',
+            'scss': 'scss',
+            'json': 'json',
+            'xml': 'xml',
+            'yaml': 'yaml',
+            'yml': 'yaml',
+            'md': 'markdown',
+            'sql': 'sql',
+            'sh': 'bash',
+            'bash': 'bash',
+        };
+        return languageMap[extension || ''] || 'javascript';
+    };
 
     useEffect(() => {
         loadFile();
@@ -84,6 +124,8 @@ export default function FileView() {
 
     return (
         <div className="container">
+            <BackButton />
+
             {/* Header */}
             <div style={{ marginBottom: '24px' }}>
                 <h1>{file?.filePath || 'Unknown file'}</h1>
@@ -136,20 +178,29 @@ export default function FileView() {
             {/* Code View Tab */}
             {activeTab === 'code' && (
                 <div>
-                    <div style={{
-                        background: '#0d1117',
-                        border: '1px solid #30363d',
-                        borderRadius: '6px',
-                        padding: '16px',
-                        fontFamily: 'monospace',
-                        fontSize: '13px',
-                        lineHeight: '1.6',
-                        overflow: 'auto',
-                        whiteSpace: 'pre-wrap',
-                        color: '#c9d1d9'
-                    }}>
+                    <SyntaxHighlighter
+                        language={getLanguageFromPath(file?.filePath || '')}
+                        style={vscDarkPlus}
+                        showLineNumbers={true}
+                        wrapLines={true}
+                        customStyle={{
+                            background: '#0d1117',
+                            border: '1px solid #30363d',
+                            borderRadius: '6px',
+                            padding: '16px',
+                            fontSize: '13px',
+                            lineHeight: '1.6',
+                            margin: 0,
+                        }}
+                        lineNumberStyle={{
+                            minWidth: '3em',
+                            paddingRight: '1em',
+                            color: '#6e7681',
+                            userSelect: 'none',
+                        }}
+                    >
                         {content}
-                    </div>
+                    </SyntaxHighlighter>
 
                     <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
                         <button className="btn" style={{ background: '#21262d' }}>
@@ -226,68 +277,50 @@ export default function FileView() {
                         )}
                     </div>
 
-                    {/* Dependencies */}
-                    <div className="card" style={{ marginBottom: '20px' }}>
-                        <h3>📦 Dependencies (Files this imports)</h3>
-                        {analysis.dependencies && analysis.dependencies.length > 0 ? (
-                            <div style={{ marginTop: '12px' }}>
-                                {analysis.dependencies.map((dep: any, idx: number) => (
-                                    <div key={idx} style={{
-                                        padding: '8px 12px',
-                                        background: '#0d1117',
-                                        borderRadius: '6px',
-                                        marginBottom: '8px'
-                                    }}>
-                                        <code style={{ color: '#58a6ff', fontSize: '13px' }}>
-                                            {dep.filePath}
-                                        </code>
-                                        {dep.dependencyType && (
-                                            <span style={{ marginLeft: '12px', fontSize: '12px', color: '#8b949e' }}>
-                                                ({dep.dependencyType})
-                                            </span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p style={{ color: '#8b949e', marginTop: '8px' }}>
-                                No dependencies found
-                            </p>
-                        )}
-                    </div>
+                    {/* Dependencies Graph */}
+                    <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
+                        <h3>🔀 Dependency Graph</h3>
+                        <p style={{ color: '#8b949e', fontSize: '13px', marginTop: '4px', marginBottom: '16px' }}>
+                            Interactive visualization of file dependencies and dependents
+                        </p>
 
-                    {/* Dependents */}
-                    <div className="card" style={{ marginBottom: '20px' }}>
-                        <h3>🔗 Dependents (Files that import this)</h3>
-                        {analysis.dependents && analysis.dependents.length > 0 ? (
-                            <div style={{ marginTop: '12px' }}>
-                                {analysis.dependents.map((dep: any, idx: number) => (
-                                    <div key={idx} style={{
-                                        padding: '8px 12px',
-                                        background: '#0d1117',
-                                        borderRadius: '6px',
-                                        marginBottom: '8px'
-                                    }}>
-                                        <code style={{ color: '#58a6ff', fontSize: '13px' }}>
-                                            {dep.filePath}
-                                        </code>
-                                    </div>
-                                ))}
-                                <div style={{
-                                    marginTop: '16px',
-                                    padding: '12px',
-                                    background: '#f0883e20',
-                                    border: '1px solid #f0883e',
-                                    borderRadius: '6px',
-                                    fontSize: '13px'
-                                }}>
-                                    ⚠️ <strong>Blast Radius:</strong> Changes to this file will affect {analysis.dependents.length} other file(s)
-                                </div>
-                            </div>
+                        {((analysis.dependencies && analysis.dependencies.length > 0) ||
+                            (analysis.dependents && analysis.dependents.length > 0)) ? (
+                            <DependencyGraph
+                                currentFile={{
+                                    id: fileId!,
+                                    filePath: file.filePath
+                                }}
+                                dependencies={analysis.dependencies || []}
+                                dependents={analysis.dependents || []}
+                            />
                         ) : (
-                            <p style={{ color: '#8b949e', marginTop: '8px' }}>
-                                No dependents found (this file is not imported by others)
-                            </p>
+                            <div style={{
+                                padding: '40px',
+                                textAlign: 'center',
+                                background: '#0d1117',
+                                borderRadius: '8px',
+                                border: '1px solid #30363d'
+                            }}>
+                                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📦</div>
+                                <p style={{ color: '#8b949e', marginTop: '8px' }}>
+                                    No dependencies or dependents found for this file
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Blast Radius Warning */}
+                        {analysis.dependents && analysis.dependents.length > 0 && (
+                            <div style={{
+                                marginTop: '16px',
+                                padding: '12px',
+                                background: '#f0883e20',
+                                border: '1px solid #f0883e',
+                                borderRadius: '6px',
+                                fontSize: '13px'
+                            }}>
+                                ⚠️ <strong>Blast Radius:</strong> Changes to this file will affect {analysis.dependents.length} other file(s)
+                            </div>
                         )}
                     </div>
 

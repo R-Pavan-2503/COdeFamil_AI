@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 
 export default function CommitView() {
     const { commitId } = useParams<{ commitId: string }>();
@@ -73,6 +74,8 @@ export default function CommitView() {
 
     return (
         <div className="container">
+            <BackButton />
+
             {/* Header */}
             <div style={{ marginBottom: '32px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -144,16 +147,54 @@ export default function CommitView() {
                                 </span>
                             </div>
                             {file.patch && (
-                                <pre style={{
+                                <div style={{
                                     background: '#0d1117',
-                                    padding: '12px',
                                     borderRadius: '6px',
-                                    overflowX: 'auto',
-                                    fontSize: '12px',
-                                    color: '#c9d1d9'
+                                    overflow: 'hidden',
+                                    border: '1px solid #30363d'
                                 }}>
-                                    {file.patch}
-                                </pre>
+                                    {file.patch.split('\n').map((line: string, lineIdx: number) => {
+                                        // Determine line type and styling
+                                        let bgColor = 'transparent';
+                                        let textColor = '#c9d1d9';
+                                        let borderLeft = 'none';
+
+                                        if (line.startsWith('+') && !line.startsWith('+++')) {
+                                            bgColor = '#23863620';
+                                            textColor = '#3fb950';
+                                            borderLeft = '3px solid #3fb950';
+                                        } else if (line.startsWith('-') && !line.startsWith('---')) {
+                                            bgColor = '#da363320';
+                                            textColor = '#f85149';
+                                            borderLeft = '3px solid #f85149';
+                                        } else if (line.startsWith('@@')) {
+                                            bgColor = '#388bfd20';
+                                            textColor = '#58a6ff';
+                                            borderLeft = '3px solid #58a6ff';
+                                        } else if (line.startsWith('+++') || line.startsWith('---')) {
+                                            textColor = '#8b949e';
+                                        }
+
+                                        return (
+                                            <div
+                                                key={lineIdx}
+                                                style={{
+                                                    padding: '2px 12px',
+                                                    background: bgColor,
+                                                    color: textColor,
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '12px',
+                                                    lineHeight: '20px',
+                                                    borderLeft: borderLeft,
+                                                    whiteSpace: 'pre',
+                                                    overflowX: 'auto'
+                                                }}
+                                            >
+                                                {line || ' '}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
                     ))}

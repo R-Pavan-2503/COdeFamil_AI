@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../utils/api';
+import FileTree from '../components/FileTree';
+import BackButton from '../components/BackButton';
 
 interface RepoViewProps {
     user: any;
@@ -73,6 +75,8 @@ export default function RepoView({ user }: RepoViewProps) {
 
     return (
         <div className="container">
+            <BackButton to="/" label="Back to Dashboard" />
+
             <div style={{ marginBottom: '24px' }}>
                 <h1>{repository.ownerUsername}/{repository.name}</h1>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
@@ -165,11 +169,35 @@ export default function RepoView({ user }: RepoViewProps) {
                                             </span>
                                         </div>
                                         <button
-                                            className="btn"
-                                            style={{ background: '#21262d' }}
+                                            className="btn btn-primary"
+                                            style={{
+                                                background: '#58a6ff',
+                                                color: '#0d1117',
+                                                border: 'none',
+                                                padding: '8px 16px',
+                                                borderRadius: '6px',
+                                                fontSize: '14px',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
                                             onClick={() => window.location.href = `/commit/${commit.id}`}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.background = '#388bfd';
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(88, 166, 255, 0.3)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.background = '#58a6ff';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = 'none';
+                                            }}
                                         >
-                                            View Details
+                                            <span>View Details</span>
+                                            <span>→</span>
                                         </button>
                                     </div>
                                 </div>
@@ -218,29 +246,16 @@ export default function RepoView({ user }: RepoViewProps) {
                     {files.length === 0 ? (
                         <p>No files found</p>
                     ) : (
-                        <div className="repo-list">
-                            {files.map((file: any) => (
-                                <div key={file.id} className="card" style={{
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s'
-                                }}
-                                    onClick={() => window.location.href = `/file/${file.id}`}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = '#1c2128'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = '#161b22'}
-                                >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <code style={{ color: '#58a6ff' }}>{file.filePath}</code>
-                                            {file.totalLines && (
-                                                <span style={{ marginLeft: '12px', fontSize: '12px', color: '#8b949e' }}>
-                                                    {file.totalLines} lines
-                                                </span>
-                                            )}
-                                        </div>
-                                        <span style={{ color: '#8b949e', fontSize: '12px' }}>→</span>
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="card" style={{
+                            padding: '16px',
+                            background: '#161b22',
+                            border: '1px solid #30363d',
+                            borderRadius: '8px'
+                        }}>
+                            <FileTree
+                                files={files}
+                                onFileClick={(fileId) => window.location.href = `/file/${fileId}`}
+                            />
                         </div>
                     )}
                 </div>
