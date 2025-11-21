@@ -20,7 +20,10 @@ export default function CommitView() {
             const response = await fetch(`http://localhost:5000/commits/${commitId}`);
             if (!response.ok) throw new Error('Commit not found');
 
-            // Get GitHub details
+            const dbCommit = await response.json();
+            setCommit(dbCommit);
+
+            // Try to get GitHub details (optional enhancement)
             try {
                 const githubResponse = await fetch(`http://localhost:5000/commits/${commitId}/github-details`);
                 if (githubResponse.ok) {

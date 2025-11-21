@@ -88,17 +88,12 @@ public class FilesController : ControllerBase
             }
         }
 
-        // Get ownership details with usernames
-        var ownershipDetails = new List<object>();
-        foreach (var own in ownership)
+        // Get ownership details with author names
+        var ownershipDetails = ownership.Select(own => new
         {
-            var user = await _db.GetUserById(own.UserId);
-            ownershipDetails.Add(new
-            {
-                username = user?.Username ?? "Unknown",
-                semanticScore = Math.Round((double)own.SemanticScore, 2)
-            });
-        }
+            username = own.AuthorName,
+            semanticScore = own.SemanticScore.HasValue ? Math.Round((double)own.SemanticScore.Value, 2) : 0
+        }).ToList();
 
         return Ok(new
         {
@@ -112,9 +107,37 @@ public class FilesController : ControllerBase
             semanticNeighbors = similarFiles.Select(f => new { filePath = f.FilePath }),
             changeCount = changes.Count,
             mostFrequentAuthor = "N/A", // TODO: Calculate from changes
-            lastModified = changes.Any() ? changes.Max(c => c.CreatedAt) : (DateTime?)null,
+            lastModified = changes.Any() ? await GetLastModifiedDate(fileId) : (DateTime?)null,
             isInOpenPr = false // TODO: Check against open PRs
         });
+    }
+
+    private async Task<DateTime?> GetLastModifiedDate(Guid fileId)
+    {
+        try
+        {
+            var changes = await _db.GetFileChangesByFile(fileId);
+            if (!changes.Any()) return null;
+
+            // Get the most recent commit that modified this file
+            var commitIds = changes.Select(c => c.CommitId).ToList();
+            DateTime? latestDate = null;
+
+            foreach (var commitId in commitIds)
+            {
+                var commit = await _db.GetCommitById(commitId);
+                if (commit != null && (latestDate == null || commit.CommittedAt > latestDate))
+                {
+                    latestDate = commit.CommittedAt;
+                }
+            }
+
+            return latestDate;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     // Get file content from Git repository

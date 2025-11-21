@@ -44,7 +44,7 @@ public class CommitsController : ControllerBase
         try
         {
             // Fetch details from GitHub API
-            var details = await _github.GetCommitDetails(repo.OwnerUsername, repo.Name, commit.Sha);
+            var details = await _github.GetCommit(repo.OwnerUsername, repo.Name, commit.Sha);
             return Ok(details);
         }
         catch (Exception ex)

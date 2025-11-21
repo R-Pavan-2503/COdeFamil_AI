@@ -51,6 +51,29 @@ public class DatabaseService : IDatabaseService
         return null;
     }
 
+    public async Task<User?> GetUserByEmail(string email)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("SELECT id, github_id, username, email, avatar_url FROM users WHERE email = @email", conn);
+        cmd.Parameters.AddWithValue("email", email);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new User
+            {
+                Id = reader.GetGuid(0),
+                GithubId = reader.GetInt64(1),
+                Username = reader.GetString(2),
+                Email = reader.IsDBNull(3) ? null : reader.GetString(3),
+                AvatarUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
+            };
+        }
+        return null;
+    }
+
     public async Task<User> CreateUser(User user)
     {
         using var conn = GetConnection();
@@ -637,11 +660,11 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "INSERT INTO file_ownership (file_id, user_id, semantic_score, last_updated) VALUES (@fileId, @userId, @score, @updated) ON CONFLICT (file_id, user_id) DO UPDATE SET semantic_score = @score, last_updated = @updated",
+            "INSERT INTO file_ownership (file_id, author_name, semantic_score, last_updated) VALUES (@fileId, @authorName, @score, @updated) ON CONFLICT (file_id, author_name) DO UPDATE SET semantic_score = @score, last_updated = @updated",
             conn);
 
         cmd.Parameters.AddWithValue("fileId", ownership.FileId);
-        cmd.Parameters.AddWithValue("userId", ownership.UserId);
+        cmd.Parameters.AddWithValue("authorName", ownership.AuthorName);
         cmd.Parameters.AddWithValue("score", (object?)ownership.SemanticScore ?? DBNull.Value);
         cmd.Parameters.AddWithValue("updated", ownership.LastUpdated);
 
@@ -654,7 +677,7 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "SELECT file_id, user_id, semantic_score, last_updated FROM file_ownership WHERE file_id = @fileId ORDER BY semantic_score DESC",
+            "SELECT file_id, author_name, semantic_score, last_updated FROM file_ownership WHERE file_id = @fileId ORDER BY semantic_score DESC LIMIT 3",
             conn);
 
         cmd.Parameters.AddWithValue("fileId", fileId);
@@ -666,7 +689,7 @@ public class DatabaseService : IDatabaseService
             ownerships.Add(new FileOwnership
             {
                 FileId = reader.GetGuid(0),
-                UserId = reader.GetGuid(1),
+                AuthorName = reader.GetString(1),
                 SemanticScore = reader.IsDBNull(2) ? null : reader.GetDecimal(2),
                 LastUpdated = reader.GetDateTime(3)
             });

@@ -8,6 +8,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using LibGit2Sharp;
 
+using LibGitRepository = LibGit2Sharp.Repository;
+using LibGitCommit = LibGit2Sharp.Commit;
+using DbCommit = CodeFamily.Api.Core.Models.Commit;
+using DbRepository = CodeFamily.Api.Core.Models.Repository;
+
 namespace CodeFamily.Api.Core.Services;
 
 /// <summary>
@@ -76,7 +81,7 @@ public class AnalysisService : IAnalysisService
                     var commit = await _db.GetCommitBySha(repositoryId, gitCommit.Sha);
                     if (commit == null)
                     {
-                        commit = await _db.CreateCommit(new Commit
+                        commit = await _db.CreateCommit(new DbCommit
                         {
                             RepositoryId = repositoryId,
                             Sha = gitCommit.Sha,
@@ -148,7 +153,7 @@ public class AnalysisService : IAnalysisService
             Email = email,
             Username = string.IsNullOrWhiteSpace(name) ? email.Split('@')[0] : name,
             AvatarUrl = $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(name)}",
-            GithubId = "placeholder" // will be updated when linked to a real GitHub account
+            GithubId = 0 // will be updated when linked to a real GitHub account
         });
         return newUser;
     }
@@ -157,8 +162,8 @@ public class AnalysisService : IAnalysisService
     // Process a single file at a specific commit
     // ---------------------------------------------------------------------
     private async Task ProcessFile(
-        Repository repo,
-        Commit commit,
+        LibGitRepository repo,
+        DbCommit commit,
         string commitSha,
         string filePath,
         Guid authorId,
@@ -234,14 +239,23 @@ public class AnalysisService : IAnalysisService
         // -----------------------------------------------------------------
         // Dependency creation based on imports
         // -----------------------------------------------------------------
+        // -----------------------------------------------------------------
+        // Dependency creation based on imports
+        // -----------------------------------------------------------------
+        _logger.LogInformation($"🔍 Analyzing dependencies for {filePath}. Found {parseResult.Imports.Count} imports.");
+        
         foreach (var import in parseResult.Imports)
         {
             try
             {
-                var targetPath = ResolveImportPath(filePath, import.Module, language);
+                _logger.LogInformation($"  👉 Processing import: '{import.Module}'");
+                var targetPath = await ResolveImportPathAsync(filePath, import.Module, language, commit.RepositoryId);
+                
                 if (targetPath != null)
                 {
+                    _logger.LogInformation($"    ✅ Resolved path: {targetPath}");
                     var targetFile = await _db.GetFileByPath(commit.RepositoryId, targetPath);
+                    
                     if (targetFile != null)
                     {
                         await _db.CreateDependency(new Dependency
@@ -251,12 +265,21 @@ public class AnalysisService : IAnalysisService
                             DependencyType = "import",
                             Strength = 1
                         });
+                        _logger.LogInformation($"    🔗 Created dependency: {filePath} -> {targetPath}");
                     }
+                    else
+                    {
+                        _logger.LogWarning($"    ⚠️ Resolved path '{targetPath}' not found in database for repo {commit.RepositoryId}");
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation($"    ❌ Could not resolve path for '{import.Module}'");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"⚠️ Failed to create dependency for import '{import.Module}': {ex.Message}");
+                _logger.LogWarning($"    ⚠️ Exception processing import '{import.Module}': {ex.Message}");
             }
         }
 
@@ -280,25 +303,36 @@ public class AnalysisService : IAnalysisService
         var files = await _db.GetFilesByRepository(repositoryId);
         foreach (var file in files)
         {
-            if (!_fileAuthorDeltas.ContainsKey(file.Id)) continue;
+            await CalculateSemanticOwnership(file.Id, repositoryId);
+        }
+    }
 
-            var authorContributions = _fileAuthorDeltas[file.Id];
-            var totalDelta = authorContributions.Values.SelectMany(d => d).Sum();
-            if (totalDelta == 0) continue;
+    public async Task CalculateSemanticOwnership(Guid fileId, Guid repositoryId)
+    {
+        if (!_fileAuthorDeltas.ContainsKey(fileId)) return;
 
-            foreach (var kvp in authorContributions)
+        var authorContributions = _fileAuthorDeltas[fileId];
+        var totalDelta = authorContributions.Values.SelectMany(d => d).Sum();
+        if (totalDelta == 0) return;
+
+        foreach (var kvp in authorContributions)
+        {
+            var authorEmail = kvp.Key;
+            var deltas = kvp.Value;
+            var authorDelta = deltas.Sum();
+            var ownershipScore = (decimal)(authorDelta / totalDelta * 100);
+
+            // Resolve or create user record
+            var user = await GetOrCreateAuthorUser(authorEmail, authorEmail.Split('@')[0]);
+
+            _logger.LogInformation($"👤 File {fileId}: {authorEmail} owns {ownershipScore:F2}%");
+            await _db.UpsertFileOwnership(new FileOwnership
             {
-                var authorEmail = kvp.Key;
-                var deltas = kvp.Value;
-                var authorDelta = deltas.Sum();
-                var ownershipScore = (decimal)(authorDelta / totalDelta * 100);
-
-                // Resolve or create user record
-                var user = await GetOrCreateAuthorUser(authorEmail, authorEmail.Split('@')[0]);
-
-                _logger.LogInformation($"👤 File {file.FilePath}: {authorEmail} owns {ownershipScore:F2}%");
-                await _db.UpdateFileOwnership(file.Id, user.Id, ownershipScore);
-            }
+                FileId = fileId,
+                AuthorName = authorEmail,
+                SemanticScore = ownershipScore,
+                LastUpdated = DateTime.UtcNow
+            });
         }
     }
 
@@ -321,48 +355,111 @@ public class AnalysisService : IAnalysisService
     // ---------------------------------------------------------------------
     // Register GitHub webhook via the GitHub service
     // ---------------------------------------------------------------------
-    private async Task RegisterWebhook(string owner, string repo)
+    // ---------------------------------------------------------------------
+// Register GitHub webhook via the GitHub service
+// ---------------------------------------------------------------------
+private async Task RegisterWebhook(string owner, string repo)
+{
+    try
     {
-        try
-        {
-            await _github.RegisterWebhook(owner, repo);
-            _logger.LogInformation($"✅ Webhook registered for {owner}/{repo}");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning($"⚠️ Failed to register webhook: {ex.Message}");
-        }
+        await _github.RegisterWebhook(owner, repo);
+        _logger.LogInformation($"✅ Webhook registered for {owner}/{repo}");
     }
-
-    // ---------------------------------------------------------------------
-    // Helper: Resolve relative import paths to absolute repository paths
-    // ---------------------------------------------------------------------
-    private string? ResolveImportPath(string sourceFile, string importModule, string language)
+    catch (Exception ex)
     {
-        var sourceDir = Path.GetDirectoryName(sourceFile) ?? string.Empty;
-        // Only handle relative imports for now (./ or ../)
+        _logger.LogWarning($"⚠️ Failed to register webhook for {owner}/{repo}. Error: {ex.Message}");
+        _logger.LogWarning($"   Ensure the GitHub App is installed on this repository and has 'write' permissions for webhooks.");
+    }
+}
+
+
+    //---------------------------------------------------------------------
+    // Helper: Resolve import paths using repository files from database
+    // ---------------------------------------------------------------------
+    private async Task<string?> ResolveImportPathAsync(string sourceFile, string importModule, string language, Guid repositoryId)
+    {
+        // Normalize paths
+        sourceFile = sourceFile.Replace("\\", "/");
+        var sourceDir = Path.GetDirectoryName(sourceFile)?.Replace("\\", "/") ?? "";
+        
+        // _logger.LogInformation($"    Resolving '{importModule}' from '{sourceDir}' (Language: {language})");
+
+        string? targetPath = null;
+
+        // Handle relative imports (./ or ../)
         if (importModule.StartsWith("./") || importModule.StartsWith("../"))
         {
-            var combined = Path.Combine(sourceDir, importModule);
-            var fullPath = Path.GetFullPath(combined).Replace("\\", "/");
-
-            // Try exact match first
-            if (File.Exists(fullPath)) return fullPath;
-
-            // Try common extensions
-            var extensions = new[] { ".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".java", ".cs", ".cpp", ".c", ".rs", ".rb", ".php" };
-            foreach (var ext in extensions)
+            // Use a fake root to resolve relative paths cleanly
+            var fakeRoot = "/root";
+            var combined = Path.Combine(fakeRoot, sourceDir, importModule);
+            var resolved = Path.GetFullPath(combined).Replace("\\", "/");
+            
+            // Remove the fake root to get back the repo-relative path
+            if (resolved.StartsWith(fakeRoot))
             {
-                if (File.Exists(fullPath + ext)) return fullPath + ext;
+                targetPath = resolved.Substring(fakeRoot.Length).TrimStart('/');
             }
-
-            // Try index files (e.g., ./utils => ./utils/index.js)
-            foreach (var ext in extensions)
+            else
             {
-                var indexPath = Path.Combine(fullPath, "index" + ext).Replace("\\", "/");
-                if (File.Exists(indexPath)) return indexPath;
+                // Path went above root (e.g. ../../../)
+                targetPath = null;
             }
         }
+        else if (language is "javascript" or "typescript")
+        {
+            // Non-relative import - could be local package or npm module
+            // Try to find it in the repository
+            var allFiles = await _db.GetFilesByRepository(repositoryId);
+            var matches = allFiles.Where(f => f.FilePath.Contains(importModule)).ToList();
+            
+            if (matches.Count == 1)
+            {
+                return matches[0].FilePath;
+            }
+            else if (matches.Count > 1)
+            {
+                // Prefer exact match
+                var exact = matches.FirstOrDefault(f => 
+                    f.FilePath.EndsWith("/" + importModule) ||
+                    f.FilePath.EndsWith("/" + importModule + ".js") ||
+                    f.FilePath.EndsWith("/" + importModule + ".jsx") ||
+                    f.FilePath.EndsWith("/" + importModule + ".ts") ||
+                    f.FilePath.EndsWith("/" + importModule + ".tsx"));
+                if (exact != null) return exact.FilePath;
+            }
+            
+            // If no match, it's likely an npm package - skip
+            return null;
+        }
+        else
+        {
+            // Other languages - only handle relative imports for now
+            return null;
+        }
+
+        // Get all repository files
+        var repoFiles = await _db.GetFilesByRepository(repositoryId);
+        
+        // Try exact match
+        var exactFile = repoFiles.FirstOrDefault(f => f.FilePath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
+        if (exactFile != null) return exactFile.FilePath;
+
+        // Try with common extensions
+        var extensions = new[] { ".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".java", ".cs" };
+        foreach (var ext in extensions)
+        {
+            var withExt = repoFiles.FirstOrDefault(f => f.FilePath.Equals(targetPath + ext, StringComparison.OrdinalIgnoreCase));
+            if (withExt != null) return withExt.FilePath;
+        }
+
+        // Try index files
+        foreach (var ext in extensions)
+        {
+            var indexPath = Path.Combine(targetPath, "index" + ext).Replace("\\", "/");
+            var indexFile = repoFiles.FirstOrDefault(f => f.FilePath.Equals(indexPath, StringComparison.OrdinalIgnoreCase));
+            if (indexFile != null) return indexFile.FilePath;
+        }
+
         return null;
     }
 
@@ -468,13 +565,13 @@ public class AnalysisService : IAnalysisService
             var commit = await _db.GetCommitBySha(repositoryId, commitSha);
             if (commit == null)
             {
-                var gitCommit = repo.Lookup(commitSha) as Commit;
+                var gitCommit = repo.Lookup(commitSha) as LibGitCommit;
                 if (gitCommit == null)
                 {
                     _logger.LogError($"Commit {commitSha} not found in repository");
                     return;
                 }
-                commit = await _db.CreateCommit(new Commit
+                commit = await _db.CreateCommit(new DbCommit
                 {
                     RepositoryId = repositoryId,
                     Sha = commitSha,

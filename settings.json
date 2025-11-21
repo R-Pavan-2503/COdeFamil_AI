@@ -29,5 +29,5 @@
     "Url": "http://localhost:3002"
   },
   "WebhookUrl": "https://conflagrant-alleen-balletic.ngrok-free.dev",
-  "CloneBasePath": "./repos"
+  "CloneBasePath": "./testdata/repos"
 }

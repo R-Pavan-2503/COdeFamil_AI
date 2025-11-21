@@ -47,7 +47,7 @@ public class FileChange
 public class FileOwnership
 {
     public Guid FileId { get; set; }
-    public Guid UserId { get; set; }
+    public string AuthorName { get; set; } = string.Empty;
     public decimal? SemanticScore { get; set; }
     public DateTime LastUpdated { get; set; }
 }
