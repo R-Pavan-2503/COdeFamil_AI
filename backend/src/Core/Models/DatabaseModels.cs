@@ -17,6 +17,7 @@ public class Repository
     public string? Status { get; set; }
     public bool IsActiveBlocking { get; set; }
     public Guid? ConnectedByUserId { get; set; }
+    public bool IsMine { get; set; }
 }
 
 public class Commit

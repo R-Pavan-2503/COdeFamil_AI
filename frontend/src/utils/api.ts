@@ -77,5 +77,19 @@ export const api = {
     async getFileAnalysis(fileId: string) {
         const res = await fetch(`${API_BASE}/files/${fileId}`);
         return handleResponse(res);
+    },
+
+    async getAnalyzedRepositories(userId: string, filter: 'your' | 'others' | 'all') {
+        const res = await fetch(`${API_BASE}/repositories/analyzed?userId=${userId}&filter=${filter}`);
+        return handleResponse(res);
+    },
+
+    async analyzeRepositoryByUrl(url: string, userId: string) {
+        const res = await fetch(`${API_BASE}/repositories/analyze-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, userId })
+        });
+        return handleResponse(res);
     }
 };

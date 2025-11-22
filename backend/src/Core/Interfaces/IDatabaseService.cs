@@ -16,6 +16,7 @@ public interface IDatabaseService
     Task UpdateRepositoryStatus(Guid repositoryId, string status);
     Task<List<Repository>> GetUserRepositories(Guid userId);
     Task<Repository?> GetRepositoryById(Guid id);
+    Task<List<Repository>> GetAnalyzedRepositories(Guid userId, string filter);
 
     // Commits
     Task<Commit> CreateCommit(Commit commit);
