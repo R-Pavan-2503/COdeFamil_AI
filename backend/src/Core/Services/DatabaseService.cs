@@ -752,7 +752,7 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "SELECT id, repository_id, pr_number, state, author_id FROM pull_requests WHERE repository_id = @repoId AND pr_number = @prNumber",
+            "SELECT id, repository_id, pr_number, title, state, author_id FROM pull_requests WHERE repository_id = @repoId AND pr_number = @prNumber",
             conn);
 
         cmd.Parameters.AddWithValue("repoId", repositoryId);
@@ -766,8 +766,9 @@ public class DatabaseService : IDatabaseService
                 Id = reader.GetGuid(0),
                 RepositoryId = reader.GetGuid(1),
                 PrNumber = reader.GetInt32(2),
-                State = reader.IsDBNull(3) ? null : reader.GetString(3),
-                AuthorId = reader.IsDBNull(4) ? null : reader.GetGuid(4)
+                Title = reader.IsDBNull(3) ? null : reader.GetString(3),
+                State = reader.IsDBNull(4) ? null : reader.GetString(4),
+                AuthorId = reader.IsDBNull(5) ? null : reader.GetGuid(5)
             };
         }
         return null;
@@ -779,11 +780,12 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "INSERT INTO pull_requests (repository_id, pr_number, state, author_id) VALUES (@repoId, @prNumber, @state, @authorId) RETURNING id",
+            "INSERT INTO pull_requests (repository_id, pr_number, title, state, author_id) VALUES (@repoId, @prNumber, @title, @state, @authorId) RETURNING id",
             conn);
 
         cmd.Parameters.AddWithValue("repoId", pr.RepositoryId);
         cmd.Parameters.AddWithValue("prNumber", pr.PrNumber);
+        cmd.Parameters.AddWithValue("title", (object?)pr.Title ?? DBNull.Value);
         cmd.Parameters.AddWithValue("state", (object?)pr.State ?? DBNull.Value);
         cmd.Parameters.AddWithValue("authorId", (object?)pr.AuthorId ?? DBNull.Value);
 
@@ -824,7 +826,7 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "SELECT id, repository_id, pr_number, state, author_id FROM pull_requests WHERE repository_id = @repoId ORDER BY pr_number DESC",
+            "SELECT id, repository_id, pr_number, title, state, author_id FROM pull_requests WHERE repository_id = @repoId ORDER BY pr_number DESC",
             conn);
 
         cmd.Parameters.AddWithValue("repoId", repositoryId);
@@ -838,8 +840,9 @@ public class DatabaseService : IDatabaseService
                 Id = reader.GetGuid(0),
                 RepositoryId = reader.GetGuid(1),
                 PrNumber = reader.GetInt32(2),
-                State = reader.IsDBNull(3) ? null : reader.GetString(3),
-                AuthorId = reader.IsDBNull(4) ? null : reader.GetGuid(4)
+                Title = reader.IsDBNull(3) ? null : reader.GetString(3),
+                State = reader.IsDBNull(4) ? null : reader.GetString(4),
+                AuthorId = reader.IsDBNull(5) ? null : reader.GetGuid(5)
             });
         }
         return prs;
@@ -852,6 +855,18 @@ public class DatabaseService : IDatabaseService
 
         using var cmd = new NpgsqlCommand("UPDATE pull_requests SET state = @state WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("state", state);
+        cmd.Parameters.AddWithValue("id", prId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task UpdatePullRequestTitle(Guid prId, string title)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("UPDATE pull_requests SET title = @title WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("title", (object?)title ?? DBNull.Value);
         cmd.Parameters.AddWithValue("id", prId);
 
         await cmd.ExecuteNonQueryAsync();

@@ -98,26 +98,103 @@ public async Task<Octokit.Repository> GetRepository(string owner, string repo)
         return await _client.Repository.Commit.GetAll(owner, repo, request);
     }
 
-    public async Task<GitHubCommit> GetCommit(string owner, string repo, string sha)
+    public async Task<GitHubCommit> GetCommit(string owner, string repo, string sha, string? accessToken = null)
     {
-        return await _client.Repository.Commit.Get(owner, repo, sha);
+        if (!string.IsNullOrEmpty(accessToken))
+        {
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(accessToken)
+            };
+            return await client.Repository.Commit.Get(owner, repo, sha);
+        }
+
+        try
+        {
+            // Try unauthenticated first
+            return await _client.Repository.Commit.Get(owner, repo, sha);
+        }
+        catch (Exception)
+        {
+            // Fallback to authenticated
+            var installationToken = await GetInstallationTokenForRepo(owner, repo);
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(installationToken)
+            };
+            return await client.Repository.Commit.Get(owner, repo, sha);
+        }
     }
 
     // Pull Requests
     public async Task<IReadOnlyList<Octokit.PullRequest>> GetPullRequests(string owner, string repo, PullRequestRequest? request = null)
     {
         request ??= new PullRequestRequest();
-        return await _client.PullRequest.GetAllForRepository(owner, repo, request);
+        try
+        {
+            return await _client.PullRequest.GetAllForRepository(owner, repo, request);
+        }
+        catch (Exception)
+        {
+            var installationToken = await GetInstallationTokenForRepo(owner, repo);
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(installationToken)
+            };
+            return await client.PullRequest.GetAllForRepository(owner, repo, request);
+        }
     }
 
-    public async Task<Octokit.PullRequest> GetPullRequest(string owner, string repo, int number)
+    public async Task<Octokit.PullRequest> GetPullRequest(string owner, string repo, int number, string? accessToken = null)
     {
-        return await _client.PullRequest.Get(owner, repo, number);
+        if (!string.IsNullOrEmpty(accessToken))
+        {
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(accessToken)
+            };
+            return await client.PullRequest.Get(owner, repo, number);
+        }
+
+        try
+        {
+            return await _client.PullRequest.Get(owner, repo, number);
+        }
+        catch (Exception)
+        {
+            var installationToken = await GetInstallationTokenForRepo(owner, repo);
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(installationToken)
+            };
+            return await client.PullRequest.Get(owner, repo, number);
+        }
     }
 
-    public async Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(string owner, string repo, int number)
+    public async Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(string owner, string repo, int number, string? accessToken = null)
     {
-        return await _client.PullRequest.Files(owner, repo, number);
+        if (!string.IsNullOrEmpty(accessToken))
+        {
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(accessToken)
+            };
+            return await client.PullRequest.Files(owner, repo, number);
+        }
+
+        try
+        {
+            return await _client.PullRequest.Files(owner, repo, number);
+        }
+        catch (Exception)
+        {
+            var installationToken = await GetInstallationTokenForRepo(owner, repo);
+            var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+            {
+                Credentials = new Credentials(installationToken)
+            };
+            return await client.PullRequest.Files(owner, repo, number);
+        }
     }
 
     // Webhooks

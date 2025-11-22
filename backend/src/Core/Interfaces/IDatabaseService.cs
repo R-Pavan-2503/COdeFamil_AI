@@ -55,6 +55,7 @@ public interface IDatabaseService
     Task<List<PullRequest>> GetOpenPullRequests(Guid repositoryId);
     Task<List<PullRequest>> GetAllPullRequests(Guid repositoryId);
     Task UpdatePullRequestState(Guid prId, string state);
+    Task UpdatePullRequestTitle(Guid prId, string title);
 
     // PR Files
     Task CreatePrFileChanged(PrFileChanged prFile);

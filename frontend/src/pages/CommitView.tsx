@@ -7,6 +7,7 @@ export default function CommitView() {
     const [commit, setCommit] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
+    const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         loadCommit();
@@ -24,9 +25,14 @@ export default function CommitView() {
             const dbCommit = await response.json();
             setCommit(dbCommit);
 
-            // Try to get GitHub details (optional enhancement)
+            // Try to get GitHub details with user token
             try {
-                const githubResponse = await fetch(`http://localhost:5000/commits/${commitId}/github-details`);
+                const token = localStorage.getItem('token');
+                const headers: any = {};
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                const githubResponse = await fetch(`http://localhost:5000/commits/${commitId}/github-details`, { headers });
                 if (githubResponse.ok) {
                     const githubData = await githubResponse.json();
                     setCommit((prev: any) => ({ ...prev, github: githubData }));
@@ -41,6 +47,16 @@ export default function CommitView() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const toggleFile = (filename: string) => {
+        const newExpanded = new Set(expandedFiles);
+        if (newExpanded.has(filename)) {
+            newExpanded.delete(filename);
+        } else {
+            newExpanded.add(filename);
+        }
+        setExpandedFiles(newExpanded);
     };
 
     if (loading) {
@@ -127,77 +143,94 @@ export default function CommitView() {
 
             {commit.github?.files && (
                 <div style={{ marginTop: '24px' }}>
-                    <h2 style={{ marginBottom: '16px' }}>Changed Files</h2>
-                    {commit.github.files.map((file: any, idx: number) => (
-                        <div key={idx} className="card" style={{ marginBottom: '16px' }}>
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: '12px',
-                                paddingBottom: '12px',
-                                borderBottom: '1px solid #30363d'
-                            }}>
-                                <h3 style={{ fontSize: '16px', color: '#58a6ff' }}>{file.filename}</h3>
-                                <span style={{
-                                    fontSize: '12px',
-                                    color: file.status === 'added' ? '#3fb950' : file.status === 'removed' ? '#f85149' : '#d29922'
-                                }}>
-                                    {file.status.toUpperCase()}
-                                </span>
-                            </div>
-                            {file.patch && (
-                                <div style={{
-                                    background: '#0d1117',
-                                    borderRadius: '6px',
-                                    overflow: 'hidden',
-                                    border: '1px solid #30363d'
-                                }}>
-                                    {file.patch.split('\n').map((line: string, lineIdx: number) => {
-                                        // Determine line type and styling
-                                        let bgColor = 'transparent';
-                                        let textColor = '#c9d1d9';
-                                        let borderLeft = 'none';
-
-                                        if (line.startsWith('+') && !line.startsWith('+++')) {
-                                            bgColor = '#23863620';
-                                            textColor = '#3fb950';
-                                            borderLeft = '3px solid #3fb950';
-                                        } else if (line.startsWith('-') && !line.startsWith('---')) {
-                                            bgColor = '#da363320';
-                                            textColor = '#f85149';
-                                            borderLeft = '3px solid #f85149';
-                                        } else if (line.startsWith('@@')) {
-                                            bgColor = '#388bfd20';
-                                            textColor = '#58a6ff';
-                                            borderLeft = '3px solid #58a6ff';
-                                        } else if (line.startsWith('+++') || line.startsWith('---')) {
-                                            textColor = '#8b949e';
-                                        }
-
-                                        return (
-                                            <div
-                                                key={lineIdx}
-                                                style={{
-                                                    padding: '2px 12px',
-                                                    background: bgColor,
-                                                    color: textColor,
-                                                    fontFamily: 'monospace',
-                                                    fontSize: '12px',
-                                                    lineHeight: '20px',
-                                                    borderLeft: borderLeft,
-                                                    whiteSpace: 'pre',
-                                                    overflowX: 'auto'
-                                                }}
-                                            >
-                                                {line || ' '}
-                                            </div>
-                                        );
-                                    })}
+                    <h2 style={{ marginBottom: '16px' }}>Files Changed ({commit.github.files.length})</h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {commit.github.files.map((file: any, idx: number) => (
+                            <div key={idx} className="card" style={{ padding: '16px' }}>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => toggleFile(file.filename)}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <code style={{ color: '#c9d1d9', fontSize: '14px' }}>{file.filename}</code>
+                                        <span style={{
+                                            padding: '2px 6px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            background: file.status === 'added' ? '#238636' : file.status === 'removed' ? '#da3633' : '#d29922',
+                                            color: 'white'
+                                        }}>
+                                            {file.status}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                        <span style={{ color: '#238636', fontSize: '12px' }}>+{file.additions}</span>
+                                        <span style={{ color: '#da3633', fontSize: '12px' }}>-{file.deletions}</span>
+                                        <span style={{ fontSize: '12px', color: '#8b949e' }}>
+                                            {expandedFiles.has(file.filename) ? '▼' : '▶'}
+                                        </span>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    ))}
+
+                                {expandedFiles.has(file.filename) && file.patch && (
+                                    <div style={{
+                                        marginTop: '12px',
+                                        background: '#0d1117',
+                                        borderRadius: '6px',
+                                        overflow: 'hidden',
+                                        border: '1px solid #30363d'
+                                    }}>
+                                        {file.patch.split('\n').map((line: string, lineIdx: number) => {
+                                            // Determine line type and styling
+                                            let bgColor = 'transparent';
+                                            let textColor = '#c9d1d9';
+                                            let borderLeft = 'none';
+
+                                            if (line.startsWith('+') && !line.startsWith('+++')) {
+                                                bgColor = '#23863620';
+                                                textColor = '#3fb950';
+                                                borderLeft = '3px solid #3fb950';
+                                            } else if (line.startsWith('-') && !line.startsWith('---')) {
+                                                bgColor = '#da363320';
+                                                textColor = '#f85149';
+                                                borderLeft = '3px solid #f85149';
+                                            } else if (line.startsWith('@@')) {
+                                                bgColor = '#388bfd20';
+                                                textColor = '#58a6ff';
+                                                borderLeft = '3px solid #58a6ff';
+                                            } else if (line.startsWith('+++') || line.startsWith('---')) {
+                                                textColor = '#8b949e';
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={lineIdx}
+                                                    style={{
+                                                        padding: '2px 12px',
+                                                        background: bgColor,
+                                                        color: textColor,
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '12px',
+                                                        lineHeight: '20px',
+                                                        borderLeft: borderLeft,
+                                                        whiteSpace: 'pre',
+                                                        overflowX: 'auto'
+                                                    }}
+                                                >
+                                                    {line || ' '}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

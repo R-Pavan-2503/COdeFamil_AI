@@ -43,8 +43,18 @@ public class CommitsController : ControllerBase
 
         try
         {
+            string? accessToken = null;
+            if (Request.Headers.TryGetValue("Authorization", out var authHeader))
+            {
+                var headerValue = authHeader.ToString();
+                if (headerValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    accessToken = headerValue.Substring("Bearer ".Length).Trim();
+                }
+            }
+
             // Fetch details from GitHub API
-            var details = await _github.GetCommit(repo.OwnerUsername, repo.Name, commit.Sha);
+            var details = await _github.GetCommit(repo.OwnerUsername, repo.Name, commit.Sha, accessToken);
             return Ok(details);
         }
         catch (Exception ex)

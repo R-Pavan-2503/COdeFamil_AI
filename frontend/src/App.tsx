@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard.tsx';
 import RepoView from './pages/RepoView.tsx';
 import CommitView from './pages/CommitView.tsx';
 import PRView from './pages/PRView.tsx';
+import PullRequestView from './pages/PullRequestView.tsx';
 import FileTreeView from './pages/FileTreeView.tsx';
 import FileView from './pages/FileView.tsx';
 import { api } from './utils/api';
@@ -130,6 +131,7 @@ function App() {
                 <Route path="/repo/:repositoryId" element={<RepoView user={user} />} />
                 <Route path="/commit/:commitId" element={<CommitView />} />
                 <Route path="/pr/:prId" element={<PRView />} />
+                <Route path="/pr/:owner/:repo/:prNumber" element={<PullRequestView user={user} />} />
                 <Route path="/file/:fileId" element={<FileView />} />
                 <Route path="/filetree/:fileId" element={<FileTreeView />} />
             </Routes>

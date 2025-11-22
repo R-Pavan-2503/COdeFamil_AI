@@ -122,6 +122,10 @@ public class AnalysisService : IAnalysisService
             _logger.LogInformation("🔄 Reconciling dependencies at HEAD...");
             await ReconcileDependenciesAtHead(repo, repositoryId);
 
+            // Step 4.6: Fetch and store pull requests from GitHub
+            _logger.LogInformation($"📋 Fetching pull  requests from GitHub for {owner}/{repoName}...");
+            await FetchAndStorePullRequests(owner, repoName, repositoryId);
+
             // Step 5: Calculate dependency graph and blast radius
             _logger.LogInformation("📊 Calculating dependency graph and blast radius...");
             await CalculateDependencyMetrics(repositoryId);
@@ -450,6 +454,97 @@ private async Task RegisterWebhook(string owner, string repo)
     {
         _logger.LogWarning($"⚠️ Failed to register webhook for {owner}/{repo}. Error: {ex.Message}");
         _logger.LogWarning($"   Ensure the GitHub App is installed on this repository and has 'write' permissions for webhooks.");
+    }
+}
+
+// ---------------------------------------------------------------------
+// Fetch and store pull requests from GitHub API
+// ---------------------------------------------------------------------
+private async Task FetchAndStorePullRequests(string owner, string repo, Guid repositoryId)
+{
+   try
+    {
+        // Fetch ALL pull requests (open and closed)
+        var openRequest = new Octokit.PullRequestRequest { State = Octokit.ItemStateFilter.Open };
+        var closedRequest = new Octokit.PullRequestRequest { State = Octokit.ItemStateFilter.Closed };
+        
+        var openPRs = await _github.GetPullRequests(owner, repo, openRequest);
+        var closedPRs = await _github.GetPullRequests(owner, repo, closedRequest);
+        
+        var allPRs = openPRs.Concat(closedPRs).ToList();
+        _logger.LogInformation($"   Found {allPRs.Count} total pull requests ({openPRs.Count} open, {closedPRs.Count} closed)");
+
+        int createdCount = 0;
+        int skippedCount = 0;
+
+        foreach (var pr in allPRs)
+        {
+            try
+            {
+                // Check if PR already exists
+                var existing = await _db.GetPullRequestByNumber(repositoryId, pr.Number);
+                if (existing != null)
+                {
+                    // Backfill title if missing
+                    if (string.IsNullOrEmpty(existing.Title) && !string.IsNullOrEmpty(pr.Title))
+                    {
+                        await _db.UpdatePullRequestTitle(existing.Id, pr.Title);
+                        _logger.LogInformation($"   Updated title for PR #{pr.Number}");
+                    }
+                    skippedCount++;
+                    continue;
+                }
+
+                // Get or create author user
+                var authorEmail = pr.User.Email ?? $"{pr.User.Login}@github.com";
+                var author = await GetOrCreateAuthorUser(authorEmail, pr.User.Login);
+
+                // Create PR record
+                var dbPr = await _db.CreatePullRequest(new PullRequest
+                {
+                    RepositoryId = repositoryId,
+                    PrNumber = pr.Number,
+                    Title = pr.Title,
+                    State = pr.State.StringValue,
+                    AuthorId = author.Id
+                });
+
+                // Fetch and store PR file changes
+                var prFiles = await _github.GetPullRequestFiles(owner, repo, pr.Number);
+                _logger.LogInformation($"   PR #{pr.Number}: {prFiles.Count} files changed");
+
+                foreach (var prFile in prFiles)
+                {
+                    // Find the file in our database
+                    var file = await _db.GetFileByPath(repositoryId, prFile.FileName);
+                    if (file != null)
+                    {
+                        await _db.CreatePrFileChanged(new PrFileChanged
+                        {
+                            PrId = dbPr.Id,
+                            FileId = file.Id
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"     ⚠️ PR file '{prFile.FileName}' not found in repository files");
+                    }
+                }
+
+                createdCount++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"   ⚠️ Failed to process PR #{pr.Number}: {ex.Message}");
+            }
+        }
+
+        _logger.LogInformation($"✅ Stored {createdCount} pull requests, skipped {skippedCount} existing");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError($"❌ Failed to fetch pull requests: {ex.Message}");
+        // Don't throw - PR fetching is not critical for analysis
     }
 }
 

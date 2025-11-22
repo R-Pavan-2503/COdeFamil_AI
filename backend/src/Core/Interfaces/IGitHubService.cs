@@ -16,12 +16,12 @@ public interface IGitHubService
 
     // Commits
     Task<IReadOnlyList<GitHubCommit>> GetCommits(string owner, string repo);
-    Task<GitHubCommit> GetCommit(string owner, string repo, string sha);
+    Task<GitHubCommit> GetCommit(string owner, string repo, string sha, string? accessToken = null);
 
     // Pull Requests
     Task<IReadOnlyList<Octokit.PullRequest>> GetPullRequests(string owner, string repo, PullRequestRequest? request = null);
-    Task<Octokit.PullRequest> GetPullRequest(string owner, string repo, int number);
-    Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(string owner, string repo, int number);
+    Task<Octokit.PullRequest> GetPullRequest(string owner, string repo, int number, string? accessToken = null);
+    Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(string owner, string repo, int number, string? accessToken = null);
 
     // Webhooks
     Task<RepositoryHook> CreateWebhook(string owner, string repo, string webhookUrl, string secret);

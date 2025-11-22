@@ -75,6 +75,7 @@ public class PullRequest
     public Guid Id { get; set; }
     public Guid RepositoryId { get; set; }
     public int PrNumber { get; set; }
+    public string? Title { get; set; }
     public string? State { get; set; }
     public Guid? AuthorId { get; set; }
 }

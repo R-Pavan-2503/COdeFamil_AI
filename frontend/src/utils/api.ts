@@ -74,6 +74,22 @@ export const api = {
         return handleResponse(res);
     },
 
+    async getPullRequests(repositoryId: string) {
+        const res = await fetch(`${API_BASE}/pullrequests/repository/${repositoryId}`);
+        return handleResponse(res);
+    },
+
+    async getPullRequestDetails(owner: string, repo: string, prNumber: number, token?: string) {
+        const headers: any = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_BASE}/pullrequests/${owner}/${repo}/${prNumber}/details`, {
+            headers
+        });
+        return handleResponse(res);
+    },
+
     async getFileAnalysis(fileId: string) {
         const res = await fetch(`${API_BASE}/files/${fileId}`);
         return handleResponse(res);
