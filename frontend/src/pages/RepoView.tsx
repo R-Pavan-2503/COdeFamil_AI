@@ -12,6 +12,8 @@ export default function RepoView({ user }: RepoViewProps) {
     const { repositoryId } = useParams<{ repositoryId: string }>();
     const [activeTab, setActiveTab] = useState<'commits' | 'prs' | 'files'>('commits');
     const [repository, setRepository] = useState<any>(null);
+    const [branches, setBranches] = useState<any[]>([]);
+    const [selectedBranch, setSelectedBranch] = useState<string>('main');
     const [commits, setCommits] = useState<any[]>([]);
     const [prs, setPrs] = useState<any[]>([]);
     const [allPrs, setAllPrs] = useState<any[]>([]);
@@ -21,13 +23,14 @@ export default function RepoView({ user }: RepoViewProps) {
 
     useEffect(() => {
         loadRepository();
+        loadBranches();
     }, [repositoryId]);
 
     useEffect(() => {
         if (activeTab === 'commits') loadCommits();
         else if (activeTab === 'prs') loadPRs();
         else if (activeTab === 'files') loadFiles();
-    }, [activeTab]);
+    }, [activeTab, selectedBranch]);
 
     useEffect(() => {
         if (allPrs.length > 0) {
@@ -52,10 +55,28 @@ export default function RepoView({ user }: RepoViewProps) {
         }
     };
 
+    const loadBranches = async () => {
+        try {
+            const data = await fetch(`http://localhost:5000/api/repositories/${repositoryId}/branches`);
+            const branches = await data.json();
+            setBranches(branches);
+
+            // Set default branch
+            const defaultBranch = branches.find((b: any) => b.isDefault);
+            if (defaultBranch) {
+                setSelectedBranch(defaultBranch.name);
+            }
+        } catch (error) {
+            console.error('Failed to load branches:', error);
+        }
+    };
+
     const loadCommits = async () => {
         try {
-            const data = await api.getCommits(repositoryId!);
-            setCommits(data);
+            // Load commits filtered by selected branch
+            const data = await fetch(`http://localhost:5000/api/repositories/${repositoryId}/branches/${selectedBranch}/commits`);
+            const commits = await data.json();
+            setCommits(commits);
         } catch (error) {
             console.error('Failed to load commits:', error);
         }
@@ -73,8 +94,10 @@ export default function RepoView({ user }: RepoViewProps) {
 
     const loadFiles = async () => {
         try {
-            const data = await api.getFiles(repositoryId!);
-            setFiles(data);
+            // Load files filtered by selected branch
+            const data = await fetch(`http://localhost:5000/api/repositories/${repositoryId}/branches/${selectedBranch}/files`);
+            const files = await data.json();
+            setFiles(files);
         } catch (error) {
             console.error('Failed to load files:', error);
         }
@@ -93,17 +116,49 @@ export default function RepoView({ user }: RepoViewProps) {
             <BackButton to="/" label="Back to Dashboard" />
 
             <div style={{ marginBottom: '24px' }}>
-                <h1>{repository.ownerUsername}/{repository.name}</h1>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
-                    <span style={{
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        background: repository.status === 'ready' ? '#238636' : '#f0883e',
-                        color: 'white'
-                    }}>
-                        {repository.status || 'unknown'}
-                    </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div>
+                        <h1>{repository.ownerUsername}/{repository.name}</h1>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+                            <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '12px',
+                                fontSize: '12px',
+                                background: repository.status === 'ready' ? '#238636' : '#f0883e',
+                                color: 'white'
+                            }}>
+                                {repository.status || 'unknown'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Branch Selector */}
+                    {branches.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#8b949e', fontSize: '14px' }}>Branch:</span>
+                            <select
+                                value={selectedBranch}
+                                onChange={(e) => setSelectedBranch(e.target.value)}
+                                style={{
+                                    background: '#21262d',
+                                    color: '#c9d1d9',
+                                    border: '1px solid #30363d',
+                                    padding: '8px 32px 8px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                {branches.map((branch: any) => (
+                                    <option key={branch.id} value={branch.name}>
+                                        {branch.name} {branch.isDefault && '(default)'}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -164,7 +219,7 @@ export default function RepoView({ user }: RepoViewProps) {
             {/* Tab Content */}
             {activeTab === 'commits' && (
                 <div>
-                    <h2>Commits</h2>
+                    <h2>Commits from branch: {selectedBranch}</h2>
                     {commits.length === 0 ? (
                         <p>No commits found</p>
                     ) : (
@@ -353,7 +408,7 @@ export default function RepoView({ user }: RepoViewProps) {
             {
                 activeTab === 'files' && (
                     <div>
-                        <h2>File Structure</h2>
+                        <h2>File Structure ({selectedBranch} branch)</h2>
                         {files.length === 0 ? (
                             <p>No files found</p>
                         ) : (

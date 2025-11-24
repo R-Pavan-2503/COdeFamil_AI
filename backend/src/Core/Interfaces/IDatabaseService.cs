@@ -22,9 +22,21 @@ public interface IDatabaseService
     Task<Repository?> GetRepositoryById(Guid id);
     Task<List<Repository>> GetAnalyzedRepositories(Guid userId, string filter);
 
+    // Branches
+    Task<Branch> CreateBranch(Branch branch);
+    Task<List<Branch>> GetBranchesByRepository(Guid repositoryId);
+    Task<Branch?> GetDefaultBranch(Guid repositoryId);
+    Task<Branch?> GetBranchByName(Guid repositoryId, string branchName);
+    Task UpdateBranchHead(Guid branchId, string commitSha);
+
+    // Commit-Branch Junction
+    Task LinkCommitToBranch(Guid commitId, Guid branchId);
+    Task<List<Guid>> GetBranchIdsForCommit(Guid commitId);
+
     // Commits
     Task<Commit> CreateCommit(Commit commit);
     Task<List<Commit>> GetCommitsByRepository(Guid repositoryId);
+    Task<List<Commit>> GetCommitsByBranch(Guid repositoryId, string branchName);
     Task<Commit?> GetCommitById(Guid id);
     Task<Commit?> GetCommitBySha(Guid repositoryId, string sha);
 
@@ -32,6 +44,7 @@ public interface IDatabaseService
     Task<RepositoryFile?> GetFileByPath(Guid repositoryId, string filePath);
     Task<RepositoryFile> CreateFile(RepositoryFile file);
     Task<List<RepositoryFile>> GetFilesByRepository(Guid repositoryId);
+    Task<List<RepositoryFile>> GetFilesByBranch(Guid repositoryId, string branchName);
     Task<RepositoryFile?> GetFileById(Guid fileId);
 
     // File Changes

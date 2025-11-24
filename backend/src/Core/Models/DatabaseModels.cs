@@ -20,6 +20,24 @@ public class Repository
     public bool IsMine { get; set; }
 }
 
+public class Branch
+{
+    public Guid Id { get; set; }
+    public Guid RepositoryId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? HeadCommitSha { get; set; }
+    public bool IsDefault { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public class CommitBranch
+{
+    public Guid CommitId { get; set; }
+    public Guid BranchId { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 public class Commit
 {
     public Guid Id { get; set; }

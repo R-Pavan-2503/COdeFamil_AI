@@ -39,4 +39,14 @@ public interface IRepositoryService
     /// Determine language from file extension.
     /// </summary>
     string GetLanguageFromPath(string filePath);
+
+    /// <summary>
+    /// Get all branch names in the repository.
+    /// </summary>
+    List<string> GetAllBranches(LibGit2Sharp.Repository repo);
+
+    /// <summary>
+    /// Get commits for a specific branch.
+    /// </summary>
+    List<LibGit2Sharp.Commit> GetCommitsByBranch(LibGit2Sharp.Repository repo, string branchName);
 }
