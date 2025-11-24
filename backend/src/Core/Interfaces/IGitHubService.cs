@@ -9,6 +9,7 @@ public interface IGitHubService
     string GetOAuthUrl(string redirectUri);
     Task<string> ExchangeCodeForToken(string code);
     Task<GitHubUserDto> GetAuthenticatedUser(string accessToken);
+    Task<string?> GetUserEmails(string accessToken);
 
     // Repositories
     Task<List<Octokit.Repository>> GetUserRepositories(string accessToken);

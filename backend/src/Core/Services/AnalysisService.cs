@@ -75,7 +75,7 @@ public class AnalysisService : IAnalysisService
                     var authorName = gitCommit.Author.Name ?? "unknown";
 
                     // Ensure author exists in DB
-                    var authorUser = await GetOrCreateAuthorUser(authorEmail, authorName);
+                    var authorUser = await GetOrCreateAuthorUser(0, authorEmail, authorName);
 
                     // Store commit if not already present
                     var commit = await _db.GetCommitBySha(repositoryId, gitCommit.Sha);
@@ -146,24 +146,71 @@ public class AnalysisService : IAnalysisService
     }
 
     // ---------------------------------------------------------------------
-    // Helper: Get or create a user record for an author email
+    // Helper: Get or create a user record for an author
+    // Prioritizes GitHub ID, then username, then email to avoid duplicates
     // ---------------------------------------------------------------------
-    private async Task<User> GetOrCreateAuthorUser(string email, string name)
+    private async Task<User> GetOrCreateAuthorUser(long githubId, string? email, string username)
     {
-        // Try to find an existing user by email (implementation assumed on IDatabaseService)
-        var existing = await _db.GetUserByEmail(email);
-        if (existing != null)
+        // Parse GitHub noreply emails to extract real username
+        // Format: "123456789+real-username@users.noreply.github.com"
+        string actualUsername = username;
+        if (!string.IsNullOrWhiteSpace(email) && email.Contains("@users.noreply.github.com"))
         {
-            return existing;
+            var parts = email.Split('@')[0].Split('+');
+            if (parts.Length == 2)
+            {
+                // Found GitHub ID + username format
+                actualUsername = parts[1]; // Use the GitHub username from email
+                _logger.LogInformation($"Parsed noreply email: '{email}' -> username: '{actualUsername}'");
+                
+                // Also try to extract GitHub ID if we don't have one
+                if (githubId == 0 && long.TryParse(parts[0], out long parsedGithubId))
+                {
+                    githubId = parsedGithubId;
+                    _logger.LogInformation($"Extracted GitHub ID from noreply email: {githubId}");
+                }
+            }
         }
 
-        // Create a placeholder user – in a real system you would enrich this later
+        // Priority 1: Try to find by GitHub ID (if available)
+        if (githubId > 0)
+        {
+            var existingByGithubId = await _db.GetUserByGitHubId(githubId);
+            if (existingByGithubId != null)
+            {
+                return existingByGithubId;
+            }
+        }
+
+        // Priority 2: Try to find by username (use parsed username if from noreply email)
+        var existingByUsername = await _db.GetUserByUsername(actualUsername);
+        if (existingByUsername != null)
+        {
+            return existingByUsername;
+        }
+
+        // Priority 3: Try to find by email (if available and NOT a noreply email)
+        if (!string.IsNullOrWhiteSpace(email) && !email.Contains("@users.noreply.github.com"))
+        {
+            var existingByEmail = await _db.GetUserByEmail(email);
+            if (existingByEmail != null)
+            {
+                return existingByEmail;
+            }
+        }
+
+        // Create a new user with real data - no fake emails
+        // For noreply emails, set email to null instead of storing the fake one
+        var userEmail = (email != null && email.Contains("@users.noreply.github.com")) ? null : email;
+        
         var newUser = await _db.CreateUser(new User
         {
-            Email = email,
-            Username = string.IsNullOrWhiteSpace(name) ? email.Split('@')[0] : name,
-            AvatarUrl = $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(name)}",
-            GithubId = 0 // will be updated when linked to a real GitHub account
+            GithubId = githubId, // Use real GitHub ID or 0
+            Username = actualUsername, // Use parsed username if from noreply email
+            Email = userEmail, // null for noreply emails
+            AvatarUrl = string.IsNullOrWhiteSpace(actualUsername) 
+                ? "https://ui-avatars.com/api/?name=Unknown" 
+                : $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(actualUsername)}"
         });
         return newUser;
     }
@@ -333,7 +380,7 @@ public class AnalysisService : IAnalysisService
             var ownershipScore = (decimal)(authorDelta / totalDelta * 100);
 
             // Resolve or create user record
-            var user = await GetOrCreateAuthorUser(authorEmail, authorEmail.Split('@')[0]);
+            var user = await GetOrCreateAuthorUser(0, authorEmail, authorEmail.Split('@')[0]);
 
             _logger.LogInformation($"👤 File {fileId}: {authorEmail} owns {ownershipScore:F2}%");
             await _db.UpsertFileOwnership(new FileOwnership
@@ -495,9 +542,11 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
                     continue;
                 }
 
-                // Get or create author user
-                var authorEmail = pr.User.Email ?? $"{pr.User.Login}@github.com";
-                var author = await GetOrCreateAuthorUser(authorEmail, pr.User.Login);
+                // Get or create author user - use real GitHub data
+                var authorGithubId = pr.User.Id; // Real GitHub ID
+                var authorEmail = pr.User.Email; // Can be null - that's OK
+                var authorUsername = pr.User.Login; // Real GitHub username
+                var author = await GetOrCreateAuthorUser(authorGithubId, authorEmail, authorUsername);
 
                 // Create PR record
                 var dbPr = await _db.CreatePullRequest(new PullRequest
@@ -509,26 +558,40 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
                     AuthorId = author.Id
                 });
 
-                // Fetch and store PR file changes
-                var prFiles = await _github.GetPullRequestFiles(owner, repo, pr.Number);
-                _logger.LogInformation($"   PR #{pr.Number}: {prFiles.Count} files changed");
-
-                foreach (var prFile in prFiles)
+                // Fetch and store PR file changes ONLY for open PRs
+                if (pr.State.StringValue.Equals("open", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Find the file in our database
-                    var file = await _db.GetFileByPath(repositoryId, prFile.FileName);
-                    if (file != null)
+                    var prFiles = await _github.GetPullRequestFiles(owner, repo, pr.Number);
+                    _logger.LogInformation($"   PR #{pr.Number}: {prFiles.Count} files changed");
+
+                    foreach (var prFile in prFiles)
                     {
+                        // Find or create the file in our database
+                        var file = await _db.GetFileByPath(repositoryId, prFile.FileName);
+                        if (file == null)
+                        {
+                            // File doesn't exist yet (likely in a feature branch)
+                            // Create it so PR files can be tracked
+                            _logger.LogInformation($"     ➕ Creating file record for '{prFile.FileName}' from PR #{pr.Number}");
+                            file = await _db.CreateFile(new RepositoryFile
+                            {
+                                RepositoryId = repositoryId,
+                                FilePath = prFile.FileName,
+                                TotalLines = null // We don't have this info yet
+                            });
+                        }
+
+                        // Now add to PR files changed
                         await _db.CreatePrFileChanged(new PrFileChanged
                         {
                             PrId = dbPr.Id,
                             FileId = file.Id
                         });
                     }
-                    else
-                    {
-                        _logger.LogWarning($"     ⚠️ PR file '{prFile.FileName}' not found in repository files");
-                    }
+                }
+                else
+                {
+                    _logger.LogInformation($"   PR #{pr.Number}: Skipping file storage for closed PR");
                 }
 
                 createdCount++;
@@ -799,7 +862,7 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
             {
                 // For incremental updates we don't have author info – use placeholder
                 var placeholderEmail = "incremental@update.com";
-                var placeholderUser = await GetOrCreateAuthorUser(placeholderEmail, "incremental");
+                var placeholderUser = await GetOrCreateAuthorUser(0, placeholderEmail, "incremental");
                 await ProcessFile(repo, commit, commitSha, filePath, placeholderUser.Id, placeholderEmail);
             }
             _logger.LogInformation($"Incremental update complete for {changedFiles.Count} files");

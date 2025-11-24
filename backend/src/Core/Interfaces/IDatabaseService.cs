@@ -7,8 +7,12 @@ public interface IDatabaseService
     // Users
     Task<User?> GetUserByGitHubId(long githubId);
     Task<User?> GetUserByEmail(string email);
+    Task<User?> GetUserByUsername(string username);
     Task<User> CreateUser(User user);
     Task<User?> GetUserById(Guid id);
+    Task UpdateUserEmail(Guid userId, string email);
+    Task UpdateUserUsername(Guid userId, string username);
+    Task UpdateUserAvatar(Guid userId, string avatarUrl);
 
     // Repositories
     Task<Repository?> GetRepositoryByName(string owner, string name);

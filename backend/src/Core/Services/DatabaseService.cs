@@ -74,6 +74,29 @@ public class DatabaseService : IDatabaseService
         return null;
     }
 
+    public async Task<User?> GetUserByUsername(string username)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("SELECT id, github_id, username, email, avatar_url FROM users WHERE username = @username", conn);
+        cmd.Parameters.AddWithValue("username", username);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new User
+            {
+                Id = reader.GetGuid(0),
+                GithubId = reader.GetInt64(1),
+                Username = reader.GetString(2),
+                Email = reader.IsDBNull(3) ? null : reader.GetString(3),
+                AvatarUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
+            };
+        }
+        return null;
+    }
+
     public async Task<User> CreateUser(User user)
     {
         using var conn = GetConnection();
@@ -113,6 +136,42 @@ public class DatabaseService : IDatabaseService
             };
         }
         return null;
+    }
+
+    public async Task UpdateUserEmail(Guid userId, string email)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("UPDATE users SET email = @email WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("email", email);
+        cmd.Parameters.AddWithValue("id", userId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task UpdateUserUsername(Guid userId, string username)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("UPDATE users SET username = @username WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("username", username);
+        cmd.Parameters.AddWithValue("id", userId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task UpdateUserAvatar(Guid userId, string avatarUrl)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("UPDATE users SET avatar_url = @avatarUrl WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("avatarUrl", avatarUrl);
+        cmd.Parameters.AddWithValue("id", userId);
+
+        await cmd.ExecuteNonQueryAsync();
     }
 
     // Repositories

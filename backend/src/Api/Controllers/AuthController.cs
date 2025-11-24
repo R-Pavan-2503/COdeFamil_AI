@@ -35,6 +35,13 @@ public class AuthController : ControllerBase
             // Get user info
             var githubUser = await _github.GetAuthenticatedUser(accessToken);
 
+            // If email is null, try to fetch it from the emails API
+            if (string.IsNullOrWhiteSpace(githubUser.Email))
+            {
+                var emails = await _github.GetUserEmails(accessToken);
+                githubUser.Email = emails;
+            }
+
             // Get or create user
             var user = await _db.GetUserByGitHubId(githubUser.Id);
             if (user == null)
@@ -46,6 +53,25 @@ public class AuthController : ControllerBase
                     Email = githubUser.Email,
                     AvatarUrl = githubUser.AvatarUrl
                 });
+            }
+            else
+            {
+                // Update existing user with latest GitHub data
+                if (!string.IsNullOrWhiteSpace(githubUser.Email) && user.Email != githubUser.Email)
+                {
+                    await _db.UpdateUserEmail(user.Id, githubUser.Email);
+                    user.Email = githubUser.Email;
+                }
+                if (user.Username != githubUser.Login)
+                {
+                    await _db.UpdateUserUsername(user.Id, githubUser.Login);
+                    user.Username = githubUser.Login;
+                }
+                if (user.AvatarUrl != githubUser.AvatarUrl)
+                {
+                    await _db.UpdateUserAvatar(user.Id, githubUser.AvatarUrl);
+                    user.AvatarUrl = githubUser.AvatarUrl;
+                }
             }
 
             return Ok(new

@@ -74,6 +74,31 @@ public class GitHubService : IGitHubService
         };
     }
 
+    public async Task<string?> GetUserEmails(string accessToken)
+    {
+        var client = new GitHubClient(new ProductHeaderValue("CodeFamily"))
+        {
+            Credentials = new Credentials(accessToken)
+        };
+
+        try
+        {
+            var emails = await client.User.Email.GetAll();
+            // Get the primary email, or the first verified email
+            var primaryEmail = emails.FirstOrDefault(e => e.Primary && e.Verified);
+            if (primaryEmail != null) return primaryEmail.Email;
+
+            var verifiedEmail = emails.FirstOrDefault(e => e.Verified);
+            if (verifiedEmail != null) return verifiedEmail.Email;
+
+            return emails.FirstOrDefault()?.Email;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     // Repositories
     public async Task<List<Octokit.Repository>> GetUserRepositories(string accessToken)
     {
