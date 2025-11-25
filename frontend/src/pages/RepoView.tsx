@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { api } from '../utils/api';
 import FileTree from '../components/FileTree';
 import BackButton from '../components/BackButton';
+import RepositoryAnalytics from '../components/RepositoryAnalytics';
+import TeamInsights from '../components/TeamInsights';
 
 interface RepoViewProps {
     user: any;
@@ -10,7 +12,7 @@ interface RepoViewProps {
 
 export default function RepoView({ user }: RepoViewProps) {
     const { repositoryId } = useParams<{ repositoryId: string }>();
-    const [activeTab, setActiveTab] = useState<'commits' | 'prs' | 'files'>('commits');
+    const [activeTab, setActiveTab] = useState<'commits' | 'prs' | 'files' | 'analytics'>('commits');
     const [repository, setRepository] = useState<any>(null);
     const [branches, setBranches] = useState<any[]>([]);
     const [selectedBranch, setSelectedBranch] = useState<string>('main');
@@ -213,6 +215,21 @@ export default function RepoView({ user }: RepoViewProps) {
                     }}
                 >
                     File Structure
+                </button>
+                <button
+                    onClick={() => setActiveTab('analytics')}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        color: activeTab === 'analytics' ? '#58a6ff' : '#8b949e',
+                        padding: '8px 0',
+                        borderBottom: activeTab === 'analytics' ? '2px solid #58a6ff' : 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600
+                    }}
+                >
+                    📊 Analytics
                 </button>
             </div>
 
@@ -427,6 +444,17 @@ export default function RepoView({ user }: RepoViewProps) {
                     </div>
                 )
             }
+
+            {/* Analytics Tab */}
+            {activeTab === 'analytics' && (
+                <div>
+                    <h2>Repository Analytics</h2>
+                    <RepositoryAnalytics repositoryId={repositoryId!} />
+
+                    <h2 style={{ marginTop: '48px' }}>Team Insights</h2>
+                    <TeamInsights repositoryId={repositoryId!} />
+                </div>
+            )}
         </div >
     );
 }

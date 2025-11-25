@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { api } from '../utils/api';
 import DependencyGraph from '../components/DependencyGraph';
 import BackButton from '../components/BackButton';
+import FileAnalysis from '../components/FileAnalysis';
+import EnhancedFileAnalysis from '../components/EnhancedFileAnalysis';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -228,162 +230,12 @@ export default function FileView() {
             {/* File Analysis Tab */}
             {activeTab === 'analysis' && analysis && (
                 <div>
-                    {/* File Purpose */}
-                    <div className="card" style={{ marginBottom: '20px' }}>
-                        <h3>📝 File Purpose</h3>
-                        <p style={{ color: '#8b949e', marginTop: '8px' }}>
-                            {analysis.purpose || 'Semantic summary will be generated from embeddings'}
-                        </p>
-                    </div>
+                    {/* Original File Analysis Component */}
+                    <FileAnalysis file={file} analysis={analysis} />
 
-                    {/* Ownership */}
-                    <div className="card" style={{ marginBottom: '20px' }}>
-                        <h3>👥 Code Ownership</h3>
-                        {analysis.owners && analysis.owners.length > 0 ? (
-                            <div style={{ marginTop: '12px' }}>
-                                {analysis.owners.map((owner: any, idx: number) => (
-                                    <div key={idx} style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        padding: '8px 0',
-                                        borderBottom: idx < analysis.owners.length - 1 ? '1px solid #30363d' : 'none'
-                                    }}>
-                                        <span>{owner.username}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <div style={{
-                                                width: '100px',
-                                                height: '8px',
-                                                background: '#21262d',
-                                                borderRadius: '4px',
-                                                overflow: 'hidden'
-                                            }}>
-                                                <div style={{
-                                                    width: `${owner.semanticScore}%`,
-                                                    height: '100%',
-                                                    background: '#3fb950'
-                                                }} />
-                                            </div>
-                                            <span style={{ fontSize: '14px', color: '#3fb950', fontWeight: 600 }}>
-                                                {owner.semanticScore}%
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p style={{ color: '#8b949e', marginTop: '8px' }}>
-                                Ownership data will be populated after multi-author analysis
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Dependencies Graph */}
-                    <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
-                        <h3>🔀 Dependency Graph</h3>
-                        <p style={{ color: '#8b949e', fontSize: '13px', marginTop: '4px', marginBottom: '16px' }}>
-                            Interactive visualization of file dependencies and dependents
-                        </p>
-
-                        {((analysis.dependencies && analysis.dependencies.length > 0) ||
-                            (analysis.dependents && analysis.dependents.length > 0)) ? (
-                            <DependencyGraph
-                                currentFile={{
-                                    id: fileId!,
-                                    filePath: file.filePath
-                                }}
-                                dependencies={analysis.dependencies || []}
-                                dependents={analysis.dependents || []}
-                            />
-                        ) : (
-                            <div style={{
-                                padding: '40px',
-                                textAlign: 'center',
-                                background: '#0d1117',
-                                borderRadius: '8px',
-                                border: '1px solid #30363d'
-                            }}>
-                                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📦</div>
-                                <p style={{ color: '#8b949e', marginTop: '8px' }}>
-                                    No dependencies or dependents found for this file
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Blast Radius Warning */}
-                        {analysis.dependents && analysis.dependents.length > 0 && (
-                            <div style={{
-                                marginTop: '16px',
-                                padding: '12px',
-                                background: '#f0883e20',
-                                border: '1px solid #f0883e',
-                                borderRadius: '6px',
-                                fontSize: '13px'
-                            }}>
-                                ⚠️ <strong>Blast Radius:</strong> Changes to this file will affect {analysis.dependents.length} other file(s)
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Semantic Neighbors */}
-                    <div className="card" style={{ marginBottom: '20px' }}>
-                        <h3>🧠 Semantically Similar Files</h3>
-                        <p style={{ color: '#8b949e', fontSize: '13px', marginTop: '4px', marginBottom: '12px' }}>
-                            Files with similar code patterns (based on AI embeddings)
-                        </p>
-                        {analysis.semanticNeighbors && analysis.semanticNeighbors.length > 0 ? (
-                            <div style={{ marginTop: '12px' }}>
-                                {analysis.semanticNeighbors.map((file: any, idx: number) => (
-                                    <div key={idx} style={{
-                                        padding: '8px 12px',
-                                        background: '#0d1117',
-                                        borderRadius: '6px',
-                                        marginBottom: '8px'
-                                    }}>
-                                        <code style={{ color: '#58a6ff', fontSize: '13px' }}>
-                                            {file.filePath}
-                                        </code>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p style={{ color: '#8b949e', marginTop: '8px' }}>
-                                Calculating semantic similarities...
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Change History */}
-                    <div className="card">
-                        <h3>📈 Change History</h3>
-                        <div style={{ marginTop: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                                <span style={{ color: '#8b949e' }}>Total Changes:</span>
-                                <span style={{ fontWeight: 600 }}>{analysis.changeCount || 0}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #30363d' }}>
-                                <span style={{ color: '#8b949e' }}>Most Active Author:</span>
-                                <span style={{ fontWeight: 600 }}>{analysis.mostFrequentAuthor || 'N/A'}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #30363d' }}>
-                                <span style={{ color: '#8b949e' }}>Last Modified:</span>
-                                <span style={{ fontWeight: 600 }}>
-                                    {analysis.lastModified ? new Date(analysis.lastModified).toLocaleDateString() : 'N/A'}
-                                </span>
-                            </div>
-                            {analysis.isInOpenPr && (
-                                <div style={{
-                                    marginTop: '12px',
-                                    padding: '12px',
-                                    background: '#d2992220',
-                                    border: '1px solid #d29922',
-                                    borderRadius: '6px',
-                                    fontSize: '13px',
-                                    color: '#d29922'
-                                }}>
-                                    ⓘ This file is part of an open Pull Request
-                                </div>
-                            )}
-                        </div>
+                    {/* Enhanced File Analysis Component */}
+                    <div style={{ marginTop: '24px' }}>
+                        <EnhancedFileAnalysis file={file} repositoryId={file.repositoryId} />
                     </div>
                 </div>
             )}
