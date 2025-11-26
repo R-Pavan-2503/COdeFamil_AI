@@ -4,7 +4,8 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     Area, AreaChart
 } from 'recharts';
-import InfoTooltip from './InfoTooltip';
+import MetricCard from './MetricCard';
+import SectionHeader from './SectionHeader';
 
 interface RepositoryAnalyticsProps {
     repositoryId: string;
@@ -127,62 +128,52 @@ export default function RepositoryAnalytics({ repositoryId }: RepositoryAnalytic
         <div style={{ display: 'grid', gap: '24px' }}>
             {/* Metrics Overview */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
-                <div className="card" style={{ background: 'linear-gradient(135deg, #58a6ff20 0%, #161b22 100%)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ fontSize: '32px' }}>📁</div>
-                        <div>
-                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '4px' }}>Total Files</div>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#58a6ff' }}>
-                                {metrics?.totalFiles || 0}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="card" style={{ background: 'linear-gradient(135deg, #3fb95020 0%, #161b22 100%)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ fontSize: '32px' }}>💾</div>
-                        <div>
-                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '4px' }}>Total Commits</div>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#3fb950' }}>
-                                {metrics?.totalCommits || 0}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="card" style={{ background: 'linear-gradient(135deg, #d2992220 0%, #161b22 100%)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ fontSize: '32px' }}>👥</div>
-                        <div>
-                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '4px' }}>Contributors</div>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#d29922' }}>
-                                {metrics?.contributors || 0}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="card" style={{ background: 'linear-gradient(135deg, #bc8cff20 0%, #161b22 100%)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ fontSize: '32px' }}>⚡</div>
-                        <div>
-                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '4px' }}>Last 7 Days</div>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#bc8cff' }}>
-                                {metrics?.recentCommits || 0}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <MetricCard
+                    icon="📁"
+                    title="Total Files"
+                    value={metrics?.totalFiles || 0}
+                    subtitle="Files in repository"
+                    color="#58a6ff"
+                    tooltip="Total number of files tracked in the repository. Includes source code, documentation, and configuration files."
+                    formula="Count(Files)"
+                />
+                <MetricCard
+                    icon="💾"
+                    title="Total Commits"
+                    value={metrics?.totalCommits || 0}
+                    subtitle="History length"
+                    color="#3fb950"
+                    tooltip="Total number of commits in the repository history. Indicates the project's age and activity level."
+                    formula="Count(Commits)"
+                />
+                <MetricCard
+                    icon="👥"
+                    title="Contributors"
+                    value={metrics?.contributors || 0}
+                    subtitle="Active developers"
+                    color="#d29922"
+                    tooltip="Number of unique contributors who have committed to the repository. Shows community size and collaboration level."
+                    formula="Count(UniqueAuthors)"
+                />
+                <MetricCard
+                    icon="⚡"
+                    title="Last 7 Days"
+                    value={metrics?.recentCommits || 0}
+                    subtitle="Recent activity"
+                    color="#bc8cff"
+                    tooltip="Number of commits made in the last 7 days. A good indicator of current project velocity and active development."
+                    formula="Count(Commits where date > now - 7days)"
+                />
             </div>
 
             {/* Repository Summary */}
             {summary && (
                 <div className="card" style={{ background: 'linear-gradient(135deg, #58a6ff10 0%, #161b22 100%)', border: '1px solid #58a6ff40' }}>
-                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>🤖</span> Repository Summary
-                        <InfoTooltip text="AI-generated summary based on semantic analysis of your codebase. Derived from file purposes and code structure." />
-                    </h3>
+                    <SectionHeader
+                        icon="🤖"
+                        title="Repository Summary"
+                        tooltip="AI-generated summary based on semantic analysis of your codebase. Derived from file purposes and code structure."
+                    />
                     <p style={{ color: '#c9d1d9', fontSize: '14px', lineHeight: '1.8', margin: '12px 0 0 0' }}>
                         {summary}
                     </p>
@@ -191,9 +182,12 @@ export default function RepositoryAnalytics({ repositoryId }: RepositoryAnalytic
 
             {/* Code Health Score */}
             <div className="card">
-                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>💚</span> Code Health Score
-                </h3>
+                <SectionHeader
+                    icon="💚"
+                    title="Code Health Score"
+                    tooltip="Overall health score based on commit frequency, code coverage, and repository activity."
+                    formula="Avg(Commits, Coverage, Activity)"
+                />
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginTop: '16px' }}>
                     <div style={{ position: 'relative', width: '120px', height: '120px' }}>
                         <svg width="120" height="120" style={{ transform: 'rotate(-90deg)' }}>
@@ -251,10 +245,11 @@ export default function RepositoryAnalytics({ repositoryId }: RepositoryAnalytic
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
                 {/* Activity Timeline */}
                 <div className="card">
-                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>📈</span> Commit Activity Timeline
-                        <InfoTooltip text="Shows the number of commits per day over the last 30 days. Helps identify development activity patterns and sprint cycles." />
-                    </h3>
+                    <SectionHeader
+                        icon="📈"
+                        title="Commit Activity Timeline"
+                        tooltip="Shows the number of commits per day over the last 30 days. Helps identify development activity patterns and sprint cycles."
+                    />
                     <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
                         Last 30 days of commit activity
                     </p>
@@ -291,10 +286,11 @@ export default function RepositoryAnalytics({ repositoryId }: RepositoryAnalytic
 
                 {/* File Type Distribution */}
                 <div className="card">
-                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>🗂️</span> File Types
-                        <InfoTooltip text="Distribution of files in the repository by extension. Shows the primary languages and file types in your codebase." />
-                    </h3>
+                    <SectionHeader
+                        icon="🗂️"
+                        title="File Types"
+                        tooltip="Distribution of files in the repository by extension. Shows the primary languages and file types in your codebase."
+                    />
                     <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
                         Codebase composition
                     </p>
@@ -322,10 +318,11 @@ export default function RepositoryAnalytics({ repositoryId }: RepositoryAnalytic
 
             {/* Hotspot Files */}
             <div className="card">
-                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>🔥</span> Change Hotspots
-                    <InfoTooltip text="Files that change most frequently. High values may indicate unstable code, frequent bugs, or areas needing refactoring." />
-                </h3>
+                <SectionHeader
+                    icon="🔥"
+                    title="Change Hotspots"
+                    tooltip="Files that change most frequently. High values may indicate unstable code, frequent bugs, or areas needing refactoring."
+                />
                 <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
                     Most frequently modified files
                 </p>
@@ -355,10 +352,11 @@ export default function RepositoryAnalytics({ repositoryId }: RepositoryAnalytic
 
             {/* File Type Details */}
             <div className="card">
-                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>📊</span> Detailed Breakdown
-                    <InfoTooltip text="Detailed file type statistics showing exact counts and percentages of each file extension in the repository." />
-                </h3>
+                <SectionHeader
+                    icon="📊"
+                    title="Detailed Breakdown"
+                    tooltip="Detailed file type statistics showing exact counts and percentages of each file extension in the repository."
+                />
                 <div style={{ display: 'grid', gap: '8px', marginTop: '16px' }}>
                     {fileTypeData.map((type, index) => {
                         const total = fileTypeData.reduce((sum, t) => sum + t.value, 0);
