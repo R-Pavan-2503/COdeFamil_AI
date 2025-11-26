@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import NetworkGraph from './NetworkGraph';
 
 interface FileAnalysisProps {
@@ -6,64 +6,181 @@ interface FileAnalysisProps {
     analysis: any;
 }
 
-// Tooltip Component
-function InfoTooltip({ text }: { text: string }) {
-    const [show, setShow] = useState(false);
+// Tooltip Component with Multiple Pages (Click-to-Toggle / Popover Pattern)
+function InfoTooltip({ text, formula }: { text: string; formula?: string }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [page, setPage] = useState<'what' | 'how'>('what');
+    const tooltipRef = useRef<HTMLDivElement>(null);
+
+    // Handle click outside to close
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+                // Reset page after animation would finish
+                setTimeout(() => setPage('what'), 200);
+            }
+        }
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
 
     return (
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+        <div
+            ref={tooltipRef}
+            style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 1000 : 10 }}
+        >
             <div
-                onMouseEnter={() => setShow(true)}
-                onMouseLeave={() => setShow(false)}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(!isOpen);
+                }}
                 style={{
-                    width: '20px',
-                    height: '20px',
+                    width: '22px',
+                    height: '22px',
                     borderRadius: '50%',
-                    background: '#58a6ff30',
+                    background: isOpen
+                        ? '#58a6ff'
+                        : 'linear-gradient(135deg, #58a6ff, #1f6feb)',
                     border: '1px solid #58a6ff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'help',
-                    fontSize: '12px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
                     fontWeight: 'bold',
-                    color: '#58a6ff'
+                    color: isOpen ? '#0d1117' : '#ffffff',
+                    boxShadow: isOpen
+                        ? '0 0 0 2px rgba(88, 166, 255, 0.4)'
+                        : '0 2px 8px rgba(88, 166, 255, 0.3)',
+                    transition: 'all 0.2s ease',
+                    userSelect: 'none'
                 }}
             >
-                ℹ️
+                {isOpen ? '✕' : 'ℹ'}
             </div>
-            {show && (
+            {isOpen && (
                 <div style={{
                     position: 'absolute',
-                    top: '30px',
-                    right: '0',
-                    width: '280px',
-                    padding: '12px',
+                    top: '36px',
+                    right: '-10px',
+                    width: '320px',
                     background: '#161b22',
-                    border: '1px solid #58a6ff',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    lineHeight: '1.5',
-                    color: '#c9d1d9',
+                    border: '1px solid #30363d',
+                    borderRadius: '12px',
                     zIndex: 1000,
-                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-                    animation: 'fadeIn 0.2s ease'
+                    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(88, 166, 255, 0.2)',
+                    animation: 'fadeIn 0.15s ease-out',
+                    overflow: 'hidden'
                 }}>
-                    <div style={{ marginBottom: '4px', fontWeight: 600, color: '#58a6ff' }}>
-                        💡 What is this?
+                    {/* Tabs */}
+                    <div style={{ display: 'flex', borderBottom: '1px solid #30363d', background: '#0d1117' }}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setPage('what'); }}
+                            style={{
+                                flex: 1,
+                                padding: '12px',
+                                background: page === 'what' ? '#161b22' : 'transparent',
+                                color: page === 'what' ? '#58a6ff' : '#8b949e',
+                                border: 'none',
+                                borderBottom: page === 'what' ? '2px solid #58a6ff' : '2px solid transparent',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                fontWeight: page === 'what' ? '600' : '500',
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            💡 What is this?
+                        </button>
+                        {formula && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setPage('how'); }}
+                                style={{
+                                    flex: 1,
+                                    padding: '12px',
+                                    background: page === 'how' ? '#161b22' : 'transparent',
+                                    color: page === 'how' ? '#58a6ff' : '#8b949e',
+                                    border: 'none',
+                                    borderBottom: page === 'how' ? '2px solid #58a6ff' : '2px solid transparent',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    fontWeight: page === 'how' ? '600' : '500',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                🔢 How calculated?
+                            </button>
+                        )}
                     </div>
-                    {text}
+
+                    {/* Content */}
+                    <div style={{ padding: '20px' }}>
+                        {page === 'what' ? (
+                            <div style={{
+                                fontSize: '13px',
+                                lineHeight: '1.6',
+                                color: '#c9d1d9'
+                            }}>
+                                {text}
+                            </div>
+                        ) : (
+                            <div>
+                                <div style={{
+                                    fontSize: '11px',
+                                    color: '#8b949e',
+                                    marginBottom: '8px',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                }}>
+                                    Mathematical Formula
+                                </div>
+                                <div style={{
+                                    padding: '16px',
+                                    background: '#0d1117',
+                                    border: '1px solid #30363d',
+                                    borderRadius: '8px',
+                                    fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
+                                    fontSize: '12px',
+                                    color: '#3fb950',
+                                    lineHeight: '1.6',
+                                    whiteSpace: 'pre-wrap'
+                                }}>
+                                    {formula}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Arrow */}
                     <div style={{
                         position: 'absolute',
                         top: '-6px',
-                        right: '8px',
+                        right: '14px',
                         width: '12px',
                         height: '12px',
-                        background: '#161b22',
-                        border: '1px solid #58a6ff',
+                        background: '#161b22', // Match header background
+                        border: '1px solid #30363d',
                         borderBottom: 'none',
                         borderRight: 'none',
-                        transform: 'rotate(45deg)'
+                        transform: 'rotate(45deg)',
+                        zIndex: 1001
+                    }} />
+
+                    {/* Cover the arrow border overlap */}
+                    <div style={{
+                        position: 'absolute',
+                        top: '0',
+                        right: '12px',
+                        width: '16px',
+                        height: '2px',
+                        background: '#0d1117', // Match tab header background
+                        zIndex: 1002
                     }} />
                 </div>
             )}
@@ -116,7 +233,7 @@ function CircularProgress({ value, size = 120, strokeWidth = 12, color = '#3fb95
 }
 
 // Metric Card Component
-function MetricCard({ icon, title, value, subtitle, color = '#58a6ff', trend, tooltip }: any) {
+function MetricCard({ icon, title, value, subtitle, color = '#58a6ff', trend, tooltip, formula }: any) {
     return (
         <div style={{
             padding: '20px',
@@ -124,23 +241,38 @@ function MetricCard({ icon, title, value, subtitle, color = '#58a6ff', trend, to
             border: `1px solid ${color}40`,
             borderRadius: '12px',
             position: 'relative',
-            overflow: 'hidden'
+            // overflow: 'hidden' REMOVED so tooltip can pop out
         }}>
+            {/* Background Icon Layer - Clipped independently */}
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                pointerEvents: 'none', // Let clicks pass through
+                zIndex: 0
+            }}>
+                <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    fontSize: '80px',
+                    opacity: 0.1
+                }}>{icon}</div>
+            </div>
+
             <div style={{
                 position: 'absolute',
                 top: '12px',
                 right: '12px',
-                zIndex: 2
+                zIndex: 100 // Ensure tooltip sits above everything
             }}>
-                <InfoTooltip text={tooltip} />
+                <InfoTooltip text={tooltip} formula={formula} />
             </div>
-            <div style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                fontSize: '80px',
-                opacity: 0.1
-            }}>{icon}</div>
+
             <div style={{ position: 'relative', zIndex: 1 }}>
                 <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '8px', fontWeight: 500 }}>
                     {title}
@@ -197,13 +329,13 @@ function BarProgress({ label, value, maxValue, color }: any) {
 }
 
 // Section Header with Tooltip
-function SectionHeader({ icon, title, tooltip }: { icon: string; title: string; tooltip: string }) {
+function SectionHeader({ icon, title, tooltip, formula }: { icon: string; title: string; tooltip: string; formula?: string }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h3 style={{ margin: 0, fontSize: '18px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>{icon}</span> {title}
             </h3>
-            <InfoTooltip text={tooltip} />
+            <InfoTooltip text={tooltip} formula={formula} />
         </div>
     );
 }
@@ -252,7 +384,8 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     value={codeHealth.toFixed(0)}
                     subtitle="Based on complexity & dependencies"
                     color="#3fb950"
-                    tooltip="Measures file maintainability based on dependency count and change frequency. Higher scores indicate cleaner, more maintainable code. Calculated as: 100 - (dependencies × 2) - (changes ÷ 10)."
+                    tooltip="Measures file maintainability based on dependency count and change frequency. Higher scores indicate cleaner, more maintainable code."
+                    formula="100 - (dependencies × 2) - (changes ÷ 10)"
                 />
                 <MetricCard
                     icon="⚡"
@@ -260,7 +393,8 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     value={impactScore.toFixed(0)}
                     subtitle={`${dptCount} files depend on this`}
                     color="#d29922"
-                    tooltip="Shows how many files will be affected if you change this file. Higher scores mean more critical files. Changes here have wider blast radius. Calculated as: (dependents × 10) + (dependencies × 5)."
+                    tooltip="Shows how many files will be affected if you change this file. Higher scores mean more critical files. Changes here have wider blast radius."
+                    formula="(dependents × 10) + (dependencies × 5)"
                 />
                 <MetricCard
                     icon="🔥"
@@ -269,7 +403,8 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     subtitle={`${changeCount} total changes`}
                     color="#f85149"
                     trend={5}
-                    tooltip="Indicates how frequently this file is modified. High activity might suggest core functionality or technical debt. Useful for identifying hotspots. Calculated as: changes × 2."
+                    tooltip="Indicates how frequently this file is modified. High activity might suggest core functionality or technical debt. Useful for identifying hotspots."
+                    formula="changes × 2 (capped at 100)"
                 />
                 <MetricCard
                     icon="🎯"
@@ -278,6 +413,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     subtitle={`${depCount} deps, ${dptCount} dependents`}
                     color="#bc8cff"
                     tooltip="Total number of file relationships. Includes both files this imports (dependencies) and files that import this (dependents). Shows coupling level."
+                    formula="dependencies + dependents"
                 />
             </div>
 
@@ -287,6 +423,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     icon="📊"
                     title="File Metrics Overview"
                     tooltip="Visual dashboard showing key file health indicators at a glance. Each circular gauge represents a different quality metric calculated from code analysis and git history."
+                    formula="Visual representation of the metrics above"
                 />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '24px', justifyItems: 'center' }}>
                     <div style={{ textAlign: 'center' }}>
@@ -334,7 +471,10 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         <h3 style={{ margin: 0, fontSize: '16px', color: '#3fb950', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             📦 Dependencies Analysis
                         </h3>
-                        <InfoTooltip text="Shows files that this file imports. Lower dependency count means better separation of concerns. Direct imports are explicit, indirect are transitive dependencies." />
+                        <InfoTooltip
+                            text="Shows files that this file imports. Lower dependency count means better separation of concerns. Direct imports are explicit, indirect are transitive dependencies."
+                            formula="Count of unique import statements"
+                        />
                     </div>
                     <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#3fb950', marginBottom: '16px' }}>
                         {depCount}
@@ -356,7 +496,10 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         <h3 style={{ margin: 0, fontSize: '16px', color: '#d29922', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             🔗 Dependents Impact
                         </h3>
-                        <InfoTooltip text="Files that import this file. Higher numbers mean more files affected by changes. Blast radius shows total files potentially impacted including indirect dependents." />
+                        <InfoTooltip
+                            text="Files that import this file. Higher numbers mean more files affected by changes. Blast radius shows total files potentially impacted including indirect dependents."
+                            formula="Count of files importing this file"
+                        />
                     </div>
                     <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#d29922', marginBottom: '16px' }}>
                         {dptCount}
@@ -383,6 +526,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     icon="🤖"
                     title="AI-Powered Insights"
                     tooltip="Machine learning analysis of your code using embeddings and semantic patterns. Provides intelligent categorization and quality assessment beyond simple metrics."
+                    formula="Vector Similarity(File, Categories)"
                 />
                 <div style={{
                     padding: '16px',
@@ -424,6 +568,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     icon="👥"
                     title="Semantic Ownership Distribution"
                     tooltip="Based on vector embedding changes, not just line counts. Shows who meaningfully contributed to the logic and structure, weighted by semantic impact rather than simple additions/deletions."
+                    formula="Σ(VectorDelta * Author) / TotalDelta"
                 />
                 <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
                     Based on vector embedding deltas, not lines of code
@@ -517,6 +662,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         icon="🕸️"
                         title="File Connections Network Graph"
                         tooltip="Interactive visualization showing all file relationships. Green nodes = dependencies (imports), Orange = dependents (importers), Purple = similar files. Helps understand code architecture and impact."
+                        formula="Graph(Nodes, Edges)"
                     />
                     <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '20px' }}>
                         Interactive web visualization showing all file relationships
@@ -536,6 +682,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     icon="📈"
                     title="Change Activity"
                     tooltip="Shows modification patterns from git history. High change count may indicate active development or code churn. Most active author likely knows this code best."
+                    formula="Count(GitCommits)"
                 />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                     <div style={{
@@ -586,6 +733,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     icon="💡"
                     title="Recommended Reviewers"
                     tooltip="Suggested code reviewers based on semantic ownership and contribution history. These developers have the most context about this file's logic and architecture."
+                    formula="Top(SemanticOwners, 3)"
                 />
                 <p style={{ fontSize: '12px', color: '#c9d1d9', marginBottom: '16px' }}>
                     Based on semantic ownership and contribution patterns
