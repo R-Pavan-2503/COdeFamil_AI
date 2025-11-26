@@ -540,6 +540,114 @@ public class RepositoriesController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    [HttpGet("files/{fileId}/enhanced-analysis")]
+    public async Task<IActionResult> GetFileEnhancedAnalysis(Guid fileId)
+    {
+        try
+        {
+            var file = await _db.GetFileById(fileId);
+            if (file == null) return NotFound();
+
+            // Get file changes history
+            var fileChanges = await _db.GetFileChangesByFile(fileId);
+            var changeHistory = fileChanges
+                .OrderByDescending(fc => fc.Additions + fc.Deletions)
+                .Take(15)
+                .Select(fc => new {
+                    Additions = fc.Additions ?? 0,
+                    Deletions = fc.Deletions ?? 0,
+                    CommitId = fc.CommitId
+                })
+                .ToList();
+
+            // Calculate total changes
+            var totalChanges = fileChanges.Count;
+            var totalAdditions = fileChanges.Sum(fc => fc.Additions ?? 0);
+            var totalDeletions = fileChanges.Sum(fc => fc.Deletions ?? 0);
+
+            // Get dependencies
+            var dependencies = await _db.GetDependenciesForFile(fileId);
+            var dependencyList = new List<object>();
+            foreach (var dep in dependencies)
+            {
+                var targetFile = await _db.GetFileById(dep.TargetFileId);
+                if (targetFile != null)
+                {
+                    dependencyList.Add(new {
+                        TargetFileId = dep.TargetFileId,
+                        TargetPath = targetFile.FilePath,
+                        DependencyType = dep.DependencyType ?? "import"
+                    });
+                }
+            }
+
+            // Get dependents (files that depend on this file)
+            var dependents = await _db.GetDependentsForFile(fileId);
+            var dependentList = new List<object>();
+            foreach (var dep in dependents)
+            {
+                var sourceFile = await _db.GetFileById(dep.SourceFileId);
+                if (sourceFile != null)
+                {
+                    dependentList.Add(new {
+                        SourceFileId = dep.SourceFileId,
+                        SourcePath = sourceFile.FilePath,
+                        DependencyType = dep.DependencyType ?? "import"
+                    });
+                }
+            }
+
+            // Get semantic neighbors (files with similar embeddings)
+            var allFiles = await _db.GetFilesByRepository(file.RepositoryId);
+            // In a real implementation, you would query by vector similarity
+            // For now, we'll get files of the same type as a simple heuristic
+            var fileExt = Path.GetExtension(file.FilePath);
+            var semanticNeighbors = allFiles
+                .Where(f => f.Id != fileId && Path.GetExtension(f.FilePath) == fileExt)
+                .Take(5)
+                .Select(f => new {
+                    FileId = f.Id,
+                    FilePath = f.FilePath,
+                    Similarity = 0.75 // Placeholder - would be actual cosine similarity
+                })
+                .ToList();
+
+            // Calculate complexity metrics from file data
+            var linesCount = file.TotalLines ?? 0;
+            var extension = Path.GetExtension(file.FilePath)?.TrimStart('.') ?? "";
+            var isCodeFile = new[] { "js", "ts", "tsx", "jsx", "py", "java", "cs", "cpp", "c", "go", "rb" }.Contains(extension);
+
+            // Basic heuristics for complexity
+            var cyclomaticComplexity = isCodeFile ? Math.Min(linesCount / 10, 50) : 0;
+            var maintainability = isCodeFile ? Math.Max(100 - (totalChanges * 2), 40) : 100;
+            var codeSmells = totalChanges > 20 ? (totalChanges / 10) : 0;
+
+            return Ok(new {
+                FileId = fileId,
+                FilePath = file.FilePath,
+                TotalLines = linesCount,
+                TotalChanges = totalChanges,
+                TotalAdditions = totalAdditions,
+                TotalDeletions = totalDeletions,
+                ChangeHistory = changeHistory,
+                Dependencies = dependencyList,
+                Dependents = dependentList,
+                SemanticNeighbors = semanticNeighbors,
+                Metrics = new {
+                    CyclomaticComplexity = cyclomaticComplexity,
+                    Maintainability = maintainability,
+                    TestCoverage = 0, // Would need test files analysis
+                    CodeSmells = codeSmells,
+                    TechnicalDebt = totalChanges > 30 ? (totalChanges / 5) : 0
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }
 
 public class AnalyzeUrlRequest

@@ -4,7 +4,6 @@ import { api } from '../utils/api';
 import DependencyGraph from '../components/DependencyGraph';
 import BackButton from '../components/BackButton';
 import FileAnalysis from '../components/FileAnalysis';
-import EnhancedFileAnalysis from '../components/EnhancedFileAnalysis';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -229,15 +228,7 @@ export default function FileView() {
 
             {/* File Analysis Tab */}
             {activeTab === 'analysis' && analysis && (
-                <div>
-                    {/* Original File Analysis Component */}
-                    <FileAnalysis file={file} analysis={analysis} />
-
-                    {/* Enhanced File Analysis Component */}
-                    <div style={{ marginTop: '24px' }}>
-                        <EnhancedFileAnalysis file={file} repositoryId={file.repositoryId} />
-                    </div>
-                </div>
+                <FileAnalysis file={file} analysis={analysis} />
             )}
         </div>
     );

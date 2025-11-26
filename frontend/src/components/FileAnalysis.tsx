@@ -1,9 +1,30 @@
+import { useEffect, useState } from 'react';
+import NetworkGraph from './NetworkGraph';
+
 interface FileAnalysisProps {
     file: any;
     analysis: any;
 }
 
 export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
+    const [enhancedData, setEnhancedData] = useState<any>(null);
+
+    useEffect(() => {
+        loadEnhancedData();
+    }, [file.id]);
+
+    const loadEnhancedData = async () => {
+        try {
+            const response = await fetch(`http://localhost:5000/repositories/files/${file.id}/enhanced-analysis`);
+            if (response.ok) {
+                const data = await response.json();
+                setEnhancedData(data);
+            }
+        } catch (error) {
+            console.error('Failed to load enhanced data:', error);
+        }
+    };
+
     return (
         <div style={{ display: 'grid', gap: '16px' }}>
             {/* Semantic Purpose */}
@@ -80,7 +101,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                 )}
             </div>
 
-            {/* Dependencies */}
+            {/* Dependencies Count */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="card">
                     <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff' }}>
@@ -90,7 +111,7 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         Files this file imports
                     </p>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3fb950' }}>
-                        {analysis.dependencies || 0}
+                        {enhancedData?.dependencies?.length || 0}
                     </div>
                 </div>
 
@@ -102,53 +123,28 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         Files that import this
                     </p>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#d29922' }}>
-                        {analysis.dependents || 0}
+                        {enhancedData?.dependents?.length || 0}
                     </div>
                 </div>
             </div>
 
-            {/* Semantic Neighbors (Blast Radius) */}
-            <div className="card">
-                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff' }}>
-                    🎯 Blast Radius (Semantic Neighbors)
-                </h3>
-                <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '12px' }}>
-                    Files with similar code patterns (via vector similarity)
-                </p>
-
-                {analysis.semanticNeighbors && analysis.semanticNeighbors.length > 0 ? (
-                    <div style={{ display: 'grid', gap: '8px' }}>
-                        {analysis.semanticNeighbors.map((neighbor: any, index: number) => (
-                            <div key={index} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '10px 12px',
-                                background: '#0d1117',
-                                borderRadius: '6px',
-                                border: '1px solid #30363d'
-                            }}>
-                                <code style={{ fontSize: '12px', color: '#58a6ff' }}>
-                                    {neighbor.filePath}
-                                </code>
-                                <div style={{
-                                    padding: '4px 8px',
-                                    borderRadius: '12px',
-                                    fontSize: '11px',
-                                    background: '#238636',
-                                    color: 'white'
-                                }}>
-                                    {(neighbor.similarity * 100).toFixed(0)}% similar
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p style={{ fontSize: '12px', color: '#8b949e' }}>
-                        No similar files found
+            {/* Network Graph Visualization */}
+            {enhancedData && (enhancedData.dependencies?.length > 0 || enhancedData.dependents?.length > 0 || enhancedData.semanticNeighbors?.length > 0) && (
+                <div className="card">
+                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🕸️</span> File Connections Network Graph
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
+                        Interactive web visualization showing all file relationships
                     </p>
-                )}
-            </div>
+                    <NetworkGraph
+                        centerFile={file.filePath}
+                        dependencies={enhancedData.dependencies || []}
+                        dependents={enhancedData.dependents || []}
+                        neighbors={enhancedData.semanticNeighbors || []}
+                    />
+                </div>
+            )}
 
             {/* Change Statistics */}
             <div className="card">

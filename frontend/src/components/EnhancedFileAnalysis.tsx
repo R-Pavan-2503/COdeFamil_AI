@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
     BarChart, Bar, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
 interface EnhancedFileAnalysisProps {
@@ -11,9 +11,7 @@ interface EnhancedFileAnalysisProps {
 
 export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFileAnalysisProps) {
     const [loading, setLoading] = useState(true);
-    const [changeHistory, setChangeHistory] = useState<any[]>([]);
-    const [complexityData, setComplexityData] = useState<any>(null);
-    const [churnData, setChurnData] = useState<any[]>([]);
+    const [analysisData, setAnalysisData] = useState<any>(null);
 
     useEffect(() => {
         loadFileMetrics();
@@ -21,50 +19,14 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
 
     const loadFileMetrics = async () => {
         try {
-            // Fetch commits that affected this file
-            const commitsRes = await fetch(`http://localhost:5000/api/repositories/${repositoryId}/commits`);
-            const allCommits = await commitsRes.json();
+            // Fetch enhanced analysis from backend
+            const response = await fetch(`http://localhost:5000/repositories/files/${file.id}/enhanced-analysis`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch file analysis');
+            }
 
-            // Simulate file-specific commits (in real implementation, filter by file)
-            const fileCommits = allCommits
-                .filter(() => Math.random() > 0.7) // Simulate 30% of commits affecting this file
-                .slice(0, 20);
-
-            // Process change history
-            const history = fileCommits.slice(0, 10).map((commit: any) => ({
-                date: new Date(commit.committedAt).toLocaleDateString(),
-                linesAdded: Math.floor(Math.random() * 100) + 10,
-                linesRemoved: Math.floor(Math.random() * 50) + 5,
-                author: commit.authorName?.substring(0, 10) || 'Unknown'
-            }));
-
-            setChangeHistory(history.reverse());
-
-            // Calculate code churn (net lines over time)
-            const churn = history.map((h: any, index: number) => ({
-                date: h.date,
-                netLines: h.linesAdded - h.linesRemoved,
-                cumulative: history.slice(0, index + 1).reduce((sum: number, item: any) =>
-                    sum + item.linesAdded - item.linesRemoved, 0
-                )
-            }));
-
-            setChurnData(churn);
-
-            // Calculate complexity metrics
-            const extension = file.filePath.split('.').pop() || '';
-            const isCodeFile = ['js', 'ts', 'tsx', 'jsx', 'py', 'java', 'cs', 'cpp', 'c'].includes(extension);
-
-            const complexity = {
-                cyclomaticComplexity: isCodeFile ? Math.floor(Math.random() * 50) + 10 : 0,
-                cognitiveComplexity: isCodeFile ? Math.floor(Math.random() * 30) + 5 : 0,
-                maintainability: isCodeFile ? Math.floor(Math.random() * 40) + 60 : 100,
-                testCoverage: isCodeFile ? Math.floor(Math.random() * 50) + 30 : 0,
-                codeSmells: isCodeFile ? Math.floor(Math.random() * 5) : 0,
-                technicalDebt: isCodeFile ? Math.floor(Math.random() * 8) + 1 : 0
-            };
-
-            setComplexityData(complexity);
+            const data = await response.json();
+            setAnalysisData(data);
 
         } catch (error) {
             console.error('Failed to load file metrics:', error);
@@ -87,14 +49,6 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
         return { level: 'Poor', color: '#f85149', icon: '🚨' };
     };
 
-    const radarData = complexityData ? [
-        { metric: 'Maintainability', value: complexityData.maintainability, fullMark: 100 },
-        { metric: 'Test Coverage', value: complexityData.testCoverage, fullMark: 100 },
-        { metric: 'Complexity', value: 100 - (complexityData.cyclomaticComplexity / 60 * 100), fullMark: 100 },
-        { metric: 'Code Quality', value: 100 - (complexityData.codeSmells * 20), fullMark: 100 },
-        { metric: 'Tech Debt', value: 100 - (complexityData.technicalDebt * 12.5), fullMark: 100 }
-    ] : [];
-
     if (loading) {
         return (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -104,8 +58,26 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
         );
     }
 
-    const cyclomaticLevel = getComplexityLevel(complexityData?.cyclomaticComplexity || 0, 60);
-    const maintainabilityLevel = getMaintainabilityLevel(complexityData?.maintainability || 0);
+    if (!analysisData) {
+        return (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <div style={{ fontSize: '36px', marginBottom: '12px' }}>❌</div>
+                <p style={{ color: '#8b949e' }}>No analysis data available</p>
+            </div>
+        );
+    }
+
+    const metrics = analysisData.metrics || {};
+    const cyclomaticLevel = getComplexityLevel(metrics.cyclomaticComplexity || 0, 60);
+    const maintainabilityLevel = getMaintainabilityLevel(metrics.maintainability || 0);
+
+    const radarData = [
+        { metric: 'Maintainability', value: metrics.maintainability || 0, fullMark: 100 },
+        { metric: 'Test Coverage', value: metrics.testCoverage || 0, fullMark: 100 },
+        { metric: 'Complexity', value: 100 - ((metrics.cyclomaticComplexity || 0) / 60 * 100), fullMark: 100 },
+        { metric: 'Code Quality', value: 100 - ((metrics.codeSmells || 0) * 20), fullMark: 100 },
+        { metric: 'Tech Debt', value: 100 - ((metrics.technicalDebt || 0) * 12.5), fullMark: 100 }
+    ];
 
     return (
         <div style={{ display: 'grid', gap: '20px' }}>
@@ -124,14 +96,14 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                             {maintainabilityLevel.level}
                         </div>
                         <div style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '4px' }}>
-                            {complexityData?.maintainability}/100
+                            {metrics.maintainability}/100
                         </div>
                     </div>
 
                     <div style={{ textAlign: 'center', padding: '16px', background: '#0d1117', borderRadius: '8px' }}>
                         <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '8px' }}>Cyclomatic Complexity</div>
                         <div style={{ fontSize: '32px', fontWeight: 'bold', color: cyclomaticLevel.color }}>
-                            {complexityData?.cyclomaticComplexity || 0}
+                            {metrics.cyclomaticComplexity || 0}
                         </div>
                         <div style={{ fontSize: '12px', color: cyclomaticLevel.color, marginTop: '4px' }}>
                             {cyclomaticLevel.level}
@@ -140,23 +112,43 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
 
                     <div style={{ textAlign: 'center', padding: '16px', background: '#0d1117', borderRadius: '8px' }}>
                         <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '8px' }}>Test Coverage</div>
-                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: complexityData?.testCoverage > 70 ? '#3fb950' : '#d29922' }}>
-                            {complexityData?.testCoverage}%
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: (metrics.testCoverage || 0) > 70 ? '#3fb950' : '#d29922' }}>
+                            {metrics.testCoverage || 0}%
                         </div>
                         <div style={{ fontSize: '12px', color: '#8b949e', marginTop: '4px' }}>
-                            {complexityData?.testCoverage > 70 ? 'Good' : 'Needs Work'}
+                            {(metrics.testCoverage || 0) > 70 ? 'Good' : 'Needs Work'}
                         </div>
                     </div>
 
                     <div style={{ textAlign: 'center', padding: '16px', background: '#0d1117', borderRadius: '8px' }}>
                         <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '8px' }}>Code Smells</div>
-                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: complexityData?.codeSmells > 3 ? '#f85149' : '#3fb950' }}>
-                            {complexityData?.codeSmells || 0}
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: (metrics.codeSmells || 0) > 3 ? '#f85149' : '#3fb950' }}>
+                            {metrics.codeSmells || 0}
                         </div>
                         <div style={{ fontSize: '12px', color: '#8b949e', marginTop: '4px' }}>
                             Issues Found
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Statistics Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                <div className="card" style={{ background: '#0d1117' }}>
+                    <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '4px' }}>Total Changes</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#58a6ff' }}>{analysisData.totalChanges || 0}</div>
+                </div>
+                <div className="card" style={{ background: '#0d1117' }}>
+                    <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '4px' }}>Lines Added</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3fb950' }}>+{analysisData.totalAdditions || 0}</div>
+                </div>
+                <div className="card" style={{ background: '#0d1117' }}>
+                    <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '4px' }}>Lines Removed</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f85149' }}>-{analysisData.totalDeletions || 0}</div>
+                </div>
+                <div className="card" style={{ background: '#0d1117' }}>
+                    <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '4px' }}>Total Lines</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#c9d1d9' }}>{analysisData.totalLines || 0}</div>
                 </div>
             </div>
 
@@ -186,19 +178,119 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                 </ResponsiveContainer>
             </div>
 
+            {/* Dependencies Chart */}
+            {analysisData.dependencies && analysisData.dependencies.length > 0 && (
+                <div className="card">
+                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>📦</span> Dependencies
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
+                        Files this file imports ({analysisData.dependencies.length} total)
+                    </p>
+                    <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={analysisData.dependencies.slice(0, 10)} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" stroke="#30363d" />
+                            <XAxis type="number" stroke="#8b949e" style={{ fontSize: '11px' }} />
+                            <YAxis
+                                type="category"
+                                dataKey="targetPath"
+                                stroke="#8b949e"
+                                style={{ fontSize: '11px' }}
+                                width={200}
+                                tickFormatter={(value) => {
+                                    const parts = value.split('/');
+                                    return parts[parts.length - 1];
+                                }}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    background: '#161b22',
+                                    border: '1px solid #30363d',
+                                    borderRadius: '6px',
+                                    fontSize: '12px'
+                                }}
+                            />
+                            <Bar dataKey={() => 1} fill="#58a6ff" name="Imports" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Dependents Chart */}
+            {analysisData.dependents && analysisData.dependents.length > 0 && (
+                <div className="card">
+                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🔗</span> Dependents
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
+                        Files that import this file ({analysisData.dependents.length} total)
+                    </p>
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                        {analysisData.dependents.slice(0, 8).map((dep: any, index: number) => (
+                            <div key={index} style={{
+                                padding: '12px',
+                                background: '#0d1117',
+                                borderRadius: '6px',
+                                border: '1px solid #30363d',
+                                fontSize: '12px'
+                            }}>
+                                <div style={{ color: '#c9d1d9', fontFamily: 'monospace' }}>{dep.importStatement}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Blast Radius (Semantic Neighbors) */}
+            {analysisData.semanticNeighbors && analysisData.semanticNeighbors.length > 0 && (
+                <div className="card">
+                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🎯</span> Blast Radius (Semantic Neighbors)
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
+                        Files with similar code patterns (via vector similarity)
+                    </p>
+                    <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={analysisData.semanticNeighbors}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#30363d" />
+                            <XAxis
+                                dataKey="filePath"
+                                stroke="#8b949e"
+                                style={{ fontSize: '11px' }}
+                                tickFormatter={(value) => {
+                                    const parts = value.split('/');
+                                    return parts[parts.length - 1];
+                                }}
+                            />
+                            <YAxis stroke="#8b949e" style={{ fontSize: '11px' }} domain={[0, 1]} />
+                            <Tooltip
+                                contentStyle={{
+                                    background: '#161b22',
+                                    border: '1px solid #30363d',
+                                    borderRadius: '6px',
+                                    fontSize: '12px'
+                                }}
+                            />
+                            <Legend />
+                            <Bar dataKey="similarity" fill="#bc8cff" name="Similarity Score" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
             {/* Change History */}
             <div className="card">
                 <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>📜</span> Change History
                 </h3>
                 <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
-                    Lines added vs removed over recent changes
+                    Recent changes to this file
                 </p>
-                {changeHistory.length > 0 ? (
+                {analysisData.changeHistory && analysisData.changeHistory.length > 0 ? (
                     <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={changeHistory}>
+                        <BarChart data={analysisData.changeHistory}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#30363d" />
-                            <XAxis dataKey="date" stroke="#8b949e" style={{ fontSize: '11px' }} />
+                            <XAxis dataKey="commitId" stroke="#8b949e" style={{ fontSize: '11px' }} hide />
                             <YAxis stroke="#8b949e" style={{ fontSize: '11px' }} />
                             <Tooltip
                                 contentStyle={{
@@ -208,8 +300,9 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                                     fontSize: '12px'
                                 }}
                             />
-                            <Bar dataKey="linesAdded" fill="#3fb950" name="Lines Added" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="linesRemoved" fill="#f85149" name="Lines Removed" radius={[4, 4, 0, 0]} />
+                            <Legend />
+                            <Bar dataKey="additions" fill="#3fb950" name="Lines Added" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="deletions" fill="#f85149" name="Lines Removed" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
@@ -219,19 +312,22 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                 )}
             </div>
 
-            {/* Code Churn */}
-            <div className="card">
-                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>🔄</span> Code Churn Analysis
-                </h3>
-                <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
-                    Net line changes and cumulative growth over time
-                </p>
-                {churnData.length > 0 ? (
+            {/* Code Churn - Net Changes Over Time */}
+            {analysisData.changeHistory && analysisData.changeHistory.length > 0 && (
+                <div className="card">
+                    <h3 style={{ marginTop: 0, fontSize: '16px', color: '#58a6ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🔄</span> Code Churn Analysis
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
+                        Net line changes per commit
+                    </p>
                     <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={churnData}>
+                        <LineChart data={analysisData.changeHistory.map((h: any) => ({
+                            commitId: h.commitId.substring(0, 8),
+                            netLines: h.additions - h.deletions
+                        }))}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#30363d" />
-                            <XAxis dataKey="date" stroke="#8b949e" style={{ fontSize: '11px' }} />
+                            <XAxis dataKey="commitId" stroke="#8b949e" style={{ fontSize: '11px' }} />
                             <YAxis stroke="#8b949e" style={{ fontSize: '11px' }} />
                             <Tooltip
                                 contentStyle={{
@@ -249,25 +345,13 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                                 name="Net Change"
                                 dot={{ fill: '#d29922', r: 4 }}
                             />
-                            <Line
-                                type="monotone"
-                                dataKey="cumulative"
-                                stroke="#58a6ff"
-                                strokeWidth={2}
-                                name="Cumulative"
-                                dot={{ fill: '#58a6ff', r: 4 }}
-                            />
                         </LineChart>
                     </ResponsiveContainer>
-                ) : (
-                    <p style={{ color: '#8b949e', fontSize: '14px', textAlign: 'center', padding: '40px' }}>
-                        No churn data available
-                    </p>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Technical Debt Warning */}
-            {complexityData && complexityData.technicalDebt > 5 && (
+            {metrics.technicalDebt > 5 && (
                 <div className="card" style={{ background: '#f8514920', border: '1px solid #f85149' }}>
                     <h3 style={{ marginTop: 0, fontSize: '16px', color: '#f85149', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>⚠️</span> Technical Debt Alert
@@ -277,14 +361,14 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                     </p>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <div style={{ padding: '6px 12px', background: '#161b22', borderRadius: '12px', fontSize: '12px' }}>
-                            {complexityData.technicalDebt} debt hours
+                            {metrics.technicalDebt} debt hours
                         </div>
-                        {complexityData.codeSmells > 0 && (
+                        {metrics.codeSmells > 0 && (
                             <div style={{ padding: '6px 12px', background: '#161b22', borderRadius: '12px', fontSize: '12px' }}>
-                                {complexityData.codeSmells} code smells
+                                {metrics.codeSmells} code smells
                             </div>
                         )}
-                        {complexityData.cyclomaticComplexity > 40 && (
+                        {metrics.cyclomaticComplexity > 40 && (
                             <div style={{ padding: '6px 12px', background: '#161b22', borderRadius: '12px', fontSize: '12px' }}>
                                 High complexity
                             </div>
@@ -293,16 +377,16 @@ export default function EnhancedFileAnalysis({ file, repositoryId }: EnhancedFil
                     <div style={{ marginTop: '12px', padding: '12px', background: '#161b22', borderRadius: '6px', fontSize: '12px' }}>
                         <strong>Recommendations:</strong>
                         <ul style={{ marginTop: '8px', marginBottom: 0, paddingLeft: '20px' }}>
-                            {complexityData.cyclomaticComplexity > 40 && <li>Consider refactoring to reduce complexity</li>}
-                            {complexityData.testCoverage < 70 && <li>Add more unit tests to improve coverage</li>}
-                            {complexityData.codeSmells > 0 && <li>Address detected code smells</li>}
+                            {metrics.cyclomaticComplexity > 40 && <li>Consider refactoring to reduce complexity</li>}
+                            {metrics.testCoverage < 70 && <li>Add more unit tests to improve coverage</li>}
+                            {metrics.codeSmells > 0 && <li>Address detected code smells</li>}
                         </ul>
                     </div>
                 </div>
             )}
 
             {/* Positive Feedback */}
-            {complexityData && complexityData.maintainability >= 80 && complexityData.testCoverage >= 70 && (
+            {metrics.maintainability >= 80 && metrics.testCoverage >= 70 && (
                 <div className="card" style={{ background: '#3fb95020', border: '1px solid #3fb950' }}>
                     <h3 style={{ marginTop: 0, fontSize: '16px', color: '#3fb950', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>✨</span> Excellent Code Quality!
