@@ -191,55 +191,66 @@ export default function Dashboard({ user, token }: DashboardProps) {
     // Render tabs navigation
     const renderTabs = () => (
         <div style={{
-            borderBottom: '1px solid #30363d',
-            marginBottom: '24px',
+            borderBottom: '1px solid var(--color-border-primary)',
+            marginBottom: 'var(--spacing-2xl)',
             display: 'flex',
-            gap: '24px'
+            gap: 'var(--spacing-2xl)',
+            position: 'relative'
         }}>
             <button
                 onClick={() => setActiveTab('your')}
+                className="btn-ghost"
                 style={{
                     background: 'none',
                     border: 'none',
-                    color: activeTab === 'your' ? '#58a6ff' : '#8b949e',
-                    padding: '8px 0',
-                    borderBottom: activeTab === 'your' ? '2px solid #58a6ff' : 'none',
+                    color: activeTab === 'your' ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
+                    padding: 'var(--spacing-md) 0',
+                    borderBottom: activeTab === 'your' ? '3px solid var(--color-primary)' : '3px solid transparent',
                     cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 600
+                    fontSize: 'var(--font-size-lg)',
+                    fontWeight: 'var(--font-weight-semibold)',
+                    transition: 'all var(--transition-base)',
+                    position: 'relative'
                 }}
             >
-                📦 Your Repository
+                <span style={{ marginRight: 'var(--spacing-sm)' }}>📦</span>
+                <span>Your Repository</span>
             </button>
             <button
                 onClick={() => setActiveTab('analyzed')}
+                className="btn-ghost"
                 style={{
                     background: 'none',
                     border: 'none',
-                    color: activeTab === 'analyzed' ? '#58a6ff' : '#8b949e',
-                    padding: '8px 0',
-                    borderBottom: activeTab === 'analyzed' ? '2px solid #58a6ff' : 'none',
+                    color: activeTab === 'analyzed' ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
+                    padding: 'var(--spacing-md) 0',
+                    borderBottom: activeTab === 'analyzed' ? '3px solid var(--color-primary)' : '3px solid transparent',
                     cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 600
+                    fontSize: 'var(--font-size-lg)',
+                    fontWeight: 'var(--font-weight-semibold)',
+                    transition: 'all var(--transition-base)'
                 }}
             >
-                📊 Analyzed Repository
+                <span style={{ marginRight: 'var(--spacing-sm)' }}>📊</span>
+                <span>Analyzed Repository</span>
             </button>
             <button
                 onClick={() => setActiveTab('add')}
+                className="btn-ghost"
                 style={{
                     background: 'none',
                     border: 'none',
-                    color: activeTab === 'add' ? '#58a6ff' : '#8b949e',
-                    padding: '8px 0',
-                    borderBottom: activeTab === 'add' ? '2px solid #58a6ff' : 'none',
+                    color: activeTab === 'add' ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
+                    padding: 'var(--spacing-md) 0',
+                    borderBottom: activeTab === 'add' ? '3px solid var(--color-primary)' : '3px solid transparent',
                     cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 600
+                    fontSize: 'var(--font-size-lg)',
+                    fontWeight: 'var(--font-weight-semibold)',
+                    transition: 'all var(--transition-base)'
                 }}
             >
-                ➕ Add Repository
+                <span style={{ marginRight: 'var(--spacing-sm)' }}>➕</span>
+                <span>Add Repository</span>
             </button>
         </div>
     );
@@ -248,28 +259,43 @@ export default function Dashboard({ user, token }: DashboardProps) {
     const renderYourRepositoriesTab = () => {
         if (loading) {
             return (
-                <div style={{ textAlign: 'center', paddingTop: '60px' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
-                    <h2>Loading your repositories from GitHub...</h2>
-                    <p style={{ color: '#8b949e', marginTop: '12px' }}>This may take a few seconds</p>
+                <div style={{ textAlign: 'center', paddingTop: 'var(--spacing-3xl)' }} className="animate-fadeIn">
+                    <div style={{ fontSize: '80px', marginBottom: 'var(--spacing-xl)', animation: 'pulse 2s ease-in-out infinite' }}>⏳</div>
+                    <h2 style={{ fontSize: 'var(--font-size-2xl)', marginBottom: 'var(--spacing-md)' }}>Loading your repositories from GitHub...</h2>
+                    <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-base)' }}>This may take a few seconds</p>
+
+                    {/* Loading Skeletons */}
+                    <div className="repo-list" style={{ marginTop: 'var(--spacing-2xl)', maxWidth: '800px', margin: 'var(--spacing-2xl) auto 0' }}>
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="card" style={{ animation: `fadeIn 0.5s ease-out ${i * 0.1}s both` }}>
+                                <div className="skeleton" style={{ height: '24px', width: '60%', marginBottom: 'var(--spacing-md)' }} />
+                                <div className="skeleton" style={{ height: '16px', width: '80%', marginBottom: 'var(--spacing-sm)' }} />
+                                <div className="skeleton" style={{ height: '16px', width: '40%' }} />
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }
 
         if (error) {
             return (
-                <div style={{
-                    padding: '20px',
-                    background: '#da363320',
-                    border: '1px solid #da3633',
-                    borderRadius: '6px',
-                    color: '#f85149',
-                    marginTop: '20px'
+                <div className="animate-slideIn" style={{
+                    padding: 'var(--spacing-xl)',
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                    border: '1px solid var(--color-error)',
+                    borderRadius: 'var(--radius-xl)',
+                    color: 'var(--color-error)',
+                    marginTop: 'var(--spacing-xl)',
+                    backdropFilter: 'blur(10px)'
                 }}>
-                    <strong>⚠️ Error:</strong> {error}
-                    <div style={{ marginTop: '12px', fontSize: '14px', color: '#c9d1d9' }}>
-                        Make sure:
-                        <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
+                    <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 'var(--spacing-md)' }}>
+                        ⚠️ Error
+                    </div>
+                    <div style={{ fontSize: 'var(--font-size-base)', marginBottom: 'var(--spacing-lg)' }}>{error}</div>
+                    <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', background: 'var(--color-bg-primary)', padding: 'var(--spacing-md)', borderRadius: 'var(--radius-md)' }}>
+                        <strong style={{ display: 'block', marginBottom: 'var(--spacing-sm)' }}>Make sure:</strong>
+                        <ul style={{ marginLeft: 'var(--spacing-xl)', lineHeight: 1.8 }}>
                             <li>The backend is running</li>
                             <li>Your GitHub access token is valid</li>
                             <li>You granted the required permissions to the GitHub App</li>
@@ -277,10 +303,10 @@ export default function Dashboard({ user, token }: DashboardProps) {
                     </div>
                     <button
                         onClick={loadRepositories}
-                        className="btn"
-                        style={{ marginTop: '16px', background: '#21262d' }}
+                        className="btn btn-secondary"
+                        style={{ marginTop: 'var(--spacing-lg)' }}
                     >
-                        Try Again
+                        🔄 Try Again
                     </button>
                 </div>
             );
@@ -288,13 +314,12 @@ export default function Dashboard({ user, token }: DashboardProps) {
 
         if (repos.length === 0) {
             return (
-                <div style={{ textAlign: 'center', paddingTop: '60px' }}>
-                    <div style={{ fontSize: '64px', marginBottom: '20px' }}>📦</div>
-                    <h2>Welcome, {user.username}!</h2>
-                    <p style={{ color: '#8b949e', marginTop: '20px', fontSize: '18px' }}>
+                <div style={{ textAlign: 'center', paddingTop: 'var(--spacing-2xl)' }}>
+                    <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-sm)' }}>Welcome, {user.username}!</h2>
+                    <p style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-md)', fontSize: 'var(--font-size-base)' }}>
                         No repositories found in your GitHub account.
                     </p>
-                    <p style={{ color: '#8b949e', marginTop: '12px', fontSize: '14px' }}>
+                    <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--spacing-sm)', fontSize: 'var(--font-size-sm)' }}>
                         Create a repository on GitHub to get started!
                     </p>
                 </div>
@@ -303,14 +328,13 @@ export default function Dashboard({ user, token }: DashboardProps) {
 
         return (
             <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                    <h2>Your Repositories ({repos.length})</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+                    <h2 style={{ fontSize: 'var(--font-size-lg)' }}>Your Repositories <span className="badge badge-primary" style={{ marginLeft: 'var(--spacing-sm)' }}>{repos.length}</span></h2>
                     <button
                         onClick={loadRepositories}
-                        className="btn"
-                        style={{ background: '#21262d', fontSize: '14px' }}
+                        className="btn btn-secondary"
                     >
-                        🔄 Refresh
+                        Refresh
                     </button>
                 </div>
 
@@ -326,45 +350,27 @@ export default function Dashboard({ user, token }: DashboardProps) {
                             <div key={repo.id} className="card repo-card" style={{ position: 'relative' }}>
                                 <div className="repo-info">
                                     <h3>{repo.login}/{repo.name}</h3>
-                                    <p style={{ color: '#8b949e', fontSize: '14px' }}>
+                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
                                         {repo.description || 'No description'}
                                     </p>
                                     {isAnalyzed && (
-                                        <div style={{ marginTop: '8px' }}>
+                                        <div style={{ marginTop: 'var(--spacing-md)' }}>
                                             {status === 'ready' ? (
-                                                <span style={{
-                                                    color: '#3fb950',
-                                                    fontSize: '12px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px'
-                                                }}>
-                                                    ✅ Analysis Complete
+                                                <span className="badge badge-success">
+                                                    Analysis Complete
                                                 </span>
                                             ) : status === 'analyzing' ? (
-                                                <span style={{
-                                                    color: '#f0883e',
-                                                    fontSize: '12px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px'
-                                                }}>
-                                                    ⏳ Analyzing...
+                                                <span className="badge badge-warning">
+                                                    Analyzing...
                                                 </span>
                                             ) : status === 'pending' ? (
-                                                <span style={{
-                                                    color: '#8b949e',
-                                                    fontSize: '12px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px'
-                                                }}>
-                                                    ⏸️ Pending
+                                                <span className="badge badge-info">
+                                                    Pending
                                                 </span>
                                             ) : (
                                                 <span style={{
-                                                    color: '#8b949e',
-                                                    fontSize: '12px'
+                                                    color: 'var(--color-text-muted)',
+                                                    fontSize: 'var(--font-size-xs)'
                                                 }}>
                                                     Status: {status}
                                                 </span>
@@ -375,42 +381,39 @@ export default function Dashboard({ user, token }: DashboardProps) {
                                 <div>
                                     {isAnalyzing ? (
                                         <button
-                                            className="btn"
-                                            style={{ background: '#21262d' }}
+                                            className="btn btn-secondary"
                                             disabled
                                         >
-                                            ⏳ Starting...
+                                            Starting...
                                         </button>
                                     ) : !isAnalyzed ? (
                                         <button
                                             className="btn btn-primary"
                                             onClick={() => handleAnalyze(repo.login, repo.name)}
                                         >
-                                            🔍 Analyze
+                                            Analyze
                                         </button>
                                     ) : isCheckingStatus ? (
                                         <button
-                                            className="btn"
-                                            style={{ background: '#21262d' }}
+                                            className="btn btn-secondary"
                                             disabled
                                         >
-                                            🔍 Checking...
+                                            Checking...
                                         </button>
                                     ) : status === 'ready' ? (
                                         <button
                                             className="btn"
-                                            style={{ background: '#388bfd20', color: '#58a6ff' }}
+                                            style={{ background: 'var(--color-primary)', color: 'white' }}
                                             onClick={() => handleViewAnalysis(repo.login, repo.name)}
                                         >
-                                            📊 View Analysis
+                                            View Analysis
                                         </button>
                                     ) : (
                                         <button
-                                            className="btn"
-                                            style={{ background: '#21262d' }}
+                                            className="btn btn-secondary"
                                             onClick={() => handleViewAnalysis(repo.login, repo.name)}
                                         >
-                                            {status === 'analyzing' ? '⏳ Check Status' : '🔍 Check Status'}
+                                            {status === 'analyzing' ? 'Check Status' : 'Check Status'}
                                         </button>
                                     )}
                                 </div>
@@ -420,21 +423,23 @@ export default function Dashboard({ user, token }: DashboardProps) {
                 </div>
 
                 <div style={{
-                    marginTop: '40px',
-                    padding: '16px',
-                    background: '#161b2220',
-                    border: '1px solid #30363d',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    color: '#8b949e'
+                    marginTop: 'var(--spacing-xl)',
+                    padding: 'var(--spacing-lg)',
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--font-size-sm)',
+                    color: 'var(--color-text-secondary)'
                 }}>
-                    <strong style={{ color: '#c9d1d9' }}>💡 How it works:</strong>
-                    <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
+                    <div style={{ fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-primary)', marginBottom: 'var(--spacing-sm)' }}>
+                        How it works:
+                    </div>
+                    <ul style={{ marginLeft: 'var(--spacing-lg)', lineHeight: 1.6 }}>
                         <li>Repositories are fetched from your GitHub account</li>
-                        <li>Click "🔍 Analyze" to clone and analyze a repository</li>
+                        <li>Click "Analyze" to clone and analyze a repository</li>
                         <li>Analysis includes: Git history parsing, semantic embeddings, and ownership calculation</li>
-                        <li>Click "📊 View Analysis" when status is ✅ to see detailed insights</li>
-                        <li>Use "🔄 Refresh" to update repository statuses</li>
+                        <li>Click "View Analysis" when ready to see detailed insights</li>
+                        <li>Use "Refresh" to update repository statuses</li>
                     </ul>
                 </div>
             </>
@@ -709,7 +714,7 @@ export default function Dashboard({ user, token }: DashboardProps) {
 
     return (
         <div className="container">
-            <h1 style={{ marginBottom: '24px' }}>Repository Management</h1>
+            <h1 style={{ marginBottom: 'var(--spacing-lg)', fontSize: 'var(--font-size-xl)' }}>Repository Management</h1>
 
             {renderTabs()}
 

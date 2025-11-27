@@ -7,6 +7,7 @@ import PRView from './pages/PRView.tsx';
 import PullRequestView from './pages/PullRequestView.tsx';
 import FileTreeView from './pages/FileTreeView.tsx';
 import FileView from './pages/FileView.tsx';
+import ThemeSelector from './components/ThemeSelector.tsx';
 import { api } from './utils/api';
 
 function App() {
@@ -71,41 +72,112 @@ function App() {
 
     if (!user) {
         return (
-            <div className="container" style={{ textAlign: 'center', paddingTop: '100px' }}>
-                <h1>CodeFamily</h1>
-                <p>AI-Powered Engineering Intelligence Platform</p>
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--color-bg-primary)'
+            }}>
+                {/* Theme Selector - Top Right */}
+                <div style={{
+                    position: 'absolute',
+                    top: 'var(--spacing-lg)',
+                    right: 'var(--spacing-lg)',
+                    zIndex: 10
+                }}>
+                    <ThemeSelector />
+                </div>
 
-                {error && (
-                    <div style={{
-                        padding: '16px',
-                        margin: '20px auto',
-                        maxWidth: '600px',
-                        background: '#da363320',
-                        border: '1px solid #da3633',
-                        borderRadius: '6px',
-                        color: '#f85149'
-                    }}>
-                        <strong>⚠️ Error:</strong> {error}
-                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#c9d1d9' }}>
-                            <strong>Troubleshooting:</strong>
-                            <ul style={{ textAlign: 'left', marginTop: '8px' }}>
-                                <li>Make sure backend is running: <code>dotnet run</code></li>
-                                <li>Backend should be at: http://localhost:5000</li>
-                                <li>Supabase database must be configured in settings.json</li>
-                            </ul>
-                        </div>
+                <div className="container" style={{
+                    maxWidth: '450px',
+                    textAlign: 'center'
+                }}>
+                    {/* Logo/Title */}
+                    <div style={{ marginBottom: 'var(--spacing-2xl)' }}>
+                        <h1 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-primary)' }}>
+                            CodeFamily
+                        </h1>
+                        <p style={{
+                            fontSize: 'var(--font-size-md)',
+                            color: 'var(--color-text-secondary)'
+                        }}>
+                            AI-Powered Engineering Intelligence Platform
+                        </p>
                     </div>
-                )}
 
-                <button className="btn btn-primary" onClick={handleLogin}>
-                    Login with GitHub
-                </button>
+                    {/* Login Card */}
+                    <div className="card" style={{ padding: 'var(--spacing-xl)' }}>
+                        {error && (
+                            <div style={{
+                                padding: 'var(--spacing-lg)',
+                                marginBottom: 'var(--spacing-lg)',
+                                background: 'rgba(248, 81, 73, 0.1)',
+                                border: '1px solid var(--color-error)',
+                                borderRadius: 'var(--radius-md)',
+                                color: 'var(--color-error)'
+                            }}>
+                                <div style={{
+                                    fontWeight: 'var(--font-weight-semibold)',
+                                    marginBottom: 'var(--spacing-sm)'
+                                }}>
+                                    Error
+                                </div>
+                                <p style={{ marginBottom: 'var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
+                                    {error}
+                                </p>
+                                <div style={{
+                                    fontSize: 'var(--font-size-xs)',
+                                    color: 'var(--color-text-secondary)',
+                                    textAlign: 'left',
+                                    background: 'var(--color-bg-primary)',
+                                    padding: 'var(--spacing-sm)',
+                                    borderRadius: 'var(--radius-sm)'
+                                }}>
+                                    <strong style={{ display: 'block', marginBottom: 'var(--spacing-xs)' }}>Troubleshooting:</strong>
+                                    <ul style={{ marginLeft: 'var(--spacing-lg)', lineHeight: 1.6 }}>
+                                        <li>Make sure backend is running: <code>dotnet run</code></li>
+                                        <li>Backend should be at: http://localhost:5000</li>
+                                        <li>Supabase database must be configured</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
 
-                <div style={{ marginTop: '40px', fontSize: '14px', color: '#8b949e' }}>
-                    <strong>System Status:</strong>
-                    <div style={{ marginTop: '12px' }}>
-                        <div>Frontend: ✅ Running</div>
-                        <div>Backend: {error ? '❌ Not responding' : '⏳ Checking...'}</div>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleLogin}
+                            style={{
+                                width: '100%',
+                                padding: 'var(--spacing-md) var(--spacing-lg)'
+                            }}
+                        >
+                            Login with GitHub
+                        </button>
+
+                        <div style={{
+                            marginTop: 'var(--spacing-lg)',
+                            padding: 'var(--spacing-md)',
+                            background: 'var(--color-bg-primary)',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: 'var(--font-size-xs)'
+                        }}>
+                            <div style={{
+                                fontWeight: 'var(--font-weight-medium)',
+                                color: 'var(--color-text-secondary)',
+                                marginBottom: 'var(--spacing-sm)'
+                            }}>
+                                System Status
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)', textAlign: 'left' }}>
+                                <div style={{ color: 'var(--color-success)' }}>
+                                    ✓ Frontend: Running
+                                </div>
+                                <div style={{ color: error ? 'var(--color-error)' : 'var(--color-warning)' }}>
+                                    {error ? '✗' : '...'} Backend: {error ? 'Not responding' : 'Checking...'}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -114,29 +186,88 @@ function App() {
 
     return (
         <BrowserRouter>
+            {/* Modern Header */}
             <div className="header">
-                <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ cursor: 'pointer' }} onClick={() => window.location.href = '/'}>
-                        CodeFamily
+                <div className="container" style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: 'var(--spacing-md) var(--spacing-xl)'
+                }}>
+                    {/* Logo */}
+                    <h2
+                        style={{
+                            cursor: 'pointer',
+                            margin: 0,
+                            fontSize: 'var(--font-size-2xl)',
+                            fontWeight: 'var(--font-weight-black)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--spacing-md)',
+                            transition: 'transform var(--transition-base)'
+                        }}
+                        onClick={() => window.location.href = '/'}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    >
+                        <span>👨‍👩‍👧‍👦</span>
+                        <span className="gradient-text">CodeFamily</span>
                     </h2>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {user.avatarUrl && <img src={user.avatarUrl} alt={user.username} style={{ width: 32, height: 32, borderRadius: '50%' }} />}
-                        <span>{user.username}</span>
+
+                    {/* User Info + Theme Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                        <ThemeSelector />
+
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--spacing-md)',
+                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                            background: 'var(--color-bg-elevated)',
+                            borderRadius: 'var(--radius-full)',
+                            border: '1px solid var(--color-border-primary)',
+                            transition: 'all var(--transition-base)'
+                        }}>
+                            {user.avatarUrl && (
+                                <img
+                                    src={user.avatarUrl}
+                                    alt={user.username}
+                                    style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '50%',
+                                        border: '2px solid var(--color-primary)',
+                                        boxShadow: '0 0 12px rgba(124, 58, 237, 0.4)'
+                                    }}
+                                />
+                            )}
+                            <span style={{
+                                fontWeight: 'var(--font-weight-semibold)',
+                                fontSize: 'var(--font-size-base)',
+                                color: 'var(--color-text-primary)'
+                            }}>
+                                {user.username}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <Routes>
-                <Route path="/" element={<Dashboard user={user} token={token} />} />
-                <Route path="/repo/:repositoryId" element={<RepoView user={user} />} />
-                <Route path="/commit/:commitId" element={<CommitView />} />
-                <Route path="/pr/:prId" element={<PRView />} />
-                <Route path="/pr/:owner/:repo/:prNumber" element={<PullRequestView user={user} />} />
-                <Route path="/file/:fileId" element={<FileView />} />
-                <Route path="/filetree/:fileId" element={<FileTreeView />} />
-            </Routes>
+            {/* Routes with fade-in animation */}
+            <div className="animate-fadeIn">
+                <Routes>
+                    <Route path="/" element={<Dashboard user={user} token={token} />} />
+                    <Route path="/repo/:repositoryId" element={<RepoView user={user} />} />
+                    <Route path="/commit/:commitId" element={<CommitView />} />
+                    <Route path="/pr/:prId" element={<PRView />} />
+                    <Route path="/pr/:owner/:repo/:prNumber" element={<PullRequestView user={user} />} />
+                    <Route path="/file/:fileId" element={<FileView />} />
+                    <Route path="/filetree/:fileId" element={<FileTreeView />} />
+                </Routes>
+            </div>
         </BrowserRouter>
     );
 }
 
 export default App;
+
