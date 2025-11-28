@@ -113,6 +113,8 @@ public class AnalysisService : IAnalysisService
                                 RepositoryId = repositoryId,
                                 Sha = gitCommit.Sha,
                                 Message = gitCommit.MessageShort,
+                                AuthorName = authorName,
+                                AuthorEmail = authorEmail,
                                 CommittedAt = gitCommit.Author.When.UtcDateTime
                             });
                         }

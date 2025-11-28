@@ -55,7 +55,7 @@ public interface IDatabaseService
     // Embeddings
     Task<CodeEmbedding> CreateEmbedding(CodeEmbedding embedding);
     Task<List<CodeEmbedding>> GetEmbeddingsByFile(Guid fileId);
-    Task<List<(RepositoryFile File, double Similarity)>> FindSimilarFiles(float[] embedding, Guid repositoryId, int limit = 10);
+    Task<List<(RepositoryFile File, double Similarity)>> FindSimilarFiles(float[] embedding, Guid repositoryId, Guid excludeFileId, int limit = 10);
 
     // Dependencies
     Task CreateDependency(Dependency dependency);

@@ -501,12 +501,14 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "INSERT INTO commits (repository_id, sha, message, committed_at) VALUES (@repoId, @sha, @message, @committedAt) RETURNING id",
+            "INSERT INTO commits (repository_id, sha, message, author_name, author_email, committed_at) VALUES (@repoId, @sha, @message, @authorName, @authorEmail, @committedAt) RETURNING id",
             conn);
 
         cmd.Parameters.AddWithValue("repoId", commit.RepositoryId);
         cmd.Parameters.AddWithValue("sha", commit.Sha);
         cmd.Parameters.AddWithValue("message", (object?)commit.Message ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("authorName", (object?)commit.AuthorName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("authorEmail", (object?)commit.AuthorEmail ?? DBNull.Value);
         cmd.Parameters.AddWithValue("committedAt", commit.CommittedAt);
 
         commit.Id = (Guid)(await cmd.ExecuteScalarAsync())!;
@@ -519,7 +521,7 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "SELECT id, repository_id, sha, message, committed_at FROM commits WHERE repository_id = @repoId ORDER BY committed_at DESC",
+            "SELECT id, repository_id, sha, message, author_name, author_email, committed_at FROM commits WHERE repository_id = @repoId ORDER BY committed_at DESC",
             conn);
 
         cmd.Parameters.AddWithValue("repoId", repositoryId);
@@ -534,7 +536,9 @@ public class DatabaseService : IDatabaseService
                 RepositoryId = reader.GetGuid(1),
                 Sha = reader.GetString(2),
                 Message = reader.IsDBNull(3) ? null : reader.GetString(3),
-                CommittedAt = reader.GetDateTime(4)
+                AuthorName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                AuthorEmail = reader.IsDBNull(5) ? null : reader.GetString(5),
+                CommittedAt = reader.GetDateTime(6)
             });
         }
         return commits;
@@ -546,7 +550,7 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            @"SELECT DISTINCT c.id, c.repository_id, c.sha, c.message, c.committed_at 
+            @"SELECT DISTINCT c.id, c.repository_id, c.sha, c.message, c.author_name, c.author_email, c.committed_at 
               FROM commits c 
               JOIN commit_branches cb ON c.id = cb.commit_id 
               JOIN branches b ON cb.branch_id = b.id 
@@ -567,7 +571,9 @@ public class DatabaseService : IDatabaseService
                 RepositoryId = reader.GetGuid(1),
                 Sha = reader.GetString(2),
                 Message = reader.IsDBNull(3) ? null : reader.GetString(3),
-                CommittedAt = reader.GetDateTime(4)
+                AuthorName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                AuthorEmail = reader.IsDBNull(5) ? null : reader.GetString(5),
+                CommittedAt = reader.GetDateTime(6)
             });
         }
         return commits;
@@ -875,7 +881,7 @@ public class DatabaseService : IDatabaseService
         return embeddings;
     }
 
-    public async Task<List<(RepositoryFile File, double Similarity)>> FindSimilarFiles(float[] embedding, Guid repositoryId, int limit = 10)
+    public async Task<List<(RepositoryFile File, double Similarity)>> FindSimilarFiles(float[] embedding, Guid repositoryId, Guid excludeFileId, int limit = 10)
     {
         using var conn = GetConnection();
         await conn.OpenAsync();
@@ -888,7 +894,7 @@ public class DatabaseService : IDatabaseService
                      (1 - (ce.embedding <=> @embedding::vector)) as similarity
               FROM code_embeddings ce
               JOIN repository_files rf ON ce.file_id = rf.id
-              WHERE rf.repository_id = @repoId
+              WHERE rf.repository_id = @repoId AND rf.id != @excludeFileId
               GROUP BY rf.id, rf.repository_id, rf.file_path, rf.total_lines, ce.embedding
               ORDER BY ce.embedding <=> @embedding::vector
               LIMIT @limit",
@@ -896,6 +902,7 @@ public class DatabaseService : IDatabaseService
 
         cmd.Parameters.AddWithValue("embedding", embeddingStr);
         cmd.Parameters.AddWithValue("repoId", repositoryId);
+        cmd.Parameters.AddWithValue("excludeFileId", excludeFileId);
         cmd.Parameters.AddWithValue("limit", limit);
 
         var results = new List<(RepositoryFile, double)>();

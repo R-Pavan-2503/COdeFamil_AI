@@ -420,51 +420,38 @@ public class RepositoriesController : ControllerBase
             // Get all files
             var files = await _db.GetFilesByRepository(repositoryId);
 
-            // Calculate contributor details
+
+
+            // Calculate contributor details directly from commits
             var contributorDetails = new List<object>();
             var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
-            // Get contributors from file ownership
-            var authorCommitCounts = new Dictionary<string, List<Guid>>();
-            foreach (var file in files)
-            {
-                var ownership = await _db.GetFileOwnership(file.Id);
-                var changes = await _db.GetFileChangesByFile(file.Id);
-                
-                foreach (var owner in ownership)
-                {
-                    if (!authorCommitCounts.ContainsKey(owner.AuthorName))
-                        authorCommitCounts[owner.AuthorName] = new List<Guid>();
-                    
-                    // Add commits that changed this file
-                    authorCommitCounts[owner.AuthorName].AddRange(changes.Select(c => c.CommitId));
-                }
-            }
+            var commitsByAuthor = commits
+                .Where(c => !string.IsNullOrEmpty(c.AuthorName))
+                .GroupBy(c => c.AuthorName);
 
-            foreach (var group in authorCommitCounts)
+            foreach (var group in commitsByAuthor)
             {
-                var authorName = group.Key;
-                var commitIds = group.Value.Distinct().ToList();
+                var authorName = group.Key!;
+                var authorCommits = group.ToList();
+                var authorEmail = authorCommits.First().AuthorEmail ?? authorName;
+                
                 var totalAdditions = 0;
                 var totalDeletions = 0;
                 var filesChanged = new HashSet<Guid>();
                 DateTime? lastCommit = null;
 
-                foreach (var commitId in commitIds)
+                foreach (var commit in authorCommits)
                 {
-                    var commit = commits.FirstOrDefault(c => c.Id == commitId);
-                    if (commit != null)
+                    if (lastCommit == null || commit.CommittedAt > lastCommit)
+                        lastCommit = commit.CommittedAt;
+                    
+                    var changes = await _db.GetFileChangesByCommit(commit.Id);
+                    foreach (var change in changes)
                     {
-                        if (lastCommit == null || commit.CommittedAt > lastCommit)
-                            lastCommit = commit.CommittedAt;
-                        
-                        var changes = await _db.GetFileChangesByCommit(commit.Id);
-                        foreach (var change in changes)
-                        {
-                            totalAdditions += change.Additions ?? 0;
-                            totalDeletions += change.Deletions ?? 0;
-                            filesChanged.Add(change.FileId);
-                        }
+                        totalAdditions += change.Additions ?? 0;
+                        totalDeletions += change.Deletions ?? 0;
+                        filesChanged.Add(change.FileId);
                     }
                 }
 
@@ -472,8 +459,8 @@ public class RepositoriesController : ControllerBase
 
                 contributorDetails.Add(new {
                     Name = authorName,
-                    Email = authorName, // Using author name as email since we don't have emails
-                    Commits = commitIds.Count,
+                    Email = authorEmail,
+                    Commits = authorCommits.Count,
                     LinesAdded = totalAdditions,
                     LinesRemoved = totalDeletions,
                     FilesChanged = filesChanged.Count,
@@ -569,49 +556,83 @@ public class RepositoriesController : ControllerBase
             // Get dependencies
             var dependencies = await _db.GetDependenciesForFile(fileId);
             var dependencyList = new List<object>();
+            var directDependencyIds = new HashSet<Guid>();
+
             foreach (var dep in dependencies)
             {
+                directDependencyIds.Add(dep.TargetFileId);
                 var targetFile = await _db.GetFileById(dep.TargetFileId);
                 if (targetFile != null)
                 {
                     dependencyList.Add(new {
                         TargetFileId = dep.TargetFileId,
                         TargetPath = targetFile.FilePath,
-                        DependencyType = dep.DependencyType ?? "import"
+                        DependencyType = dep.DependencyType ?? "import",
+                        Score = dep.Strength ?? 1 // Use Strength as score
                     });
                 }
             }
 
+            // Get indirect dependencies (recursive)
+            var allDependencies = await GetAllDependenciesRecursive(fileId, new HashSet<Guid>());
+            var indirectDependencyList = allDependencies
+                .Where(d => !directDependencyIds.Contains(d.FileId))
+                .Select(d => new {
+                    TargetFileId = d.FileId,
+                    TargetPath = d.FilePath,
+                    DependencyType = "indirect",
+                    Score = 0.5 // Placeholder score for indirect
+                })
+                .DistinctBy(d => d.TargetFileId)
+                .ToList();
+
             // Get dependents (files that depend on this file)
             var dependents = await _db.GetDependentsForFile(fileId);
             var dependentList = new List<object>();
+            var directDependentIds = new HashSet<Guid>();
+
             foreach (var dep in dependents)
             {
+                directDependentIds.Add(dep.SourceFileId);
                 var sourceFile = await _db.GetFileById(dep.SourceFileId);
                 if (sourceFile != null)
                 {
                     dependentList.Add(new {
                         SourceFileId = dep.SourceFileId,
                         SourcePath = sourceFile.FilePath,
-                        DependencyType = dep.DependencyType ?? "import"
+                        DependencyType = dep.DependencyType ?? "import",
+                        Score = dep.Strength ?? 1 // Use Strength as score
                     });
                 }
             }
 
-            // Get semantic neighbors (files with similar embeddings)
-            var allFiles = await _db.GetFilesByRepository(file.RepositoryId);
-            // In a real implementation, you would query by vector similarity
-            // For now, we'll get files of the same type as a simple heuristic
-            var fileExt = Path.GetExtension(file.FilePath);
-            var semanticNeighbors = allFiles
-                .Where(f => f.Id != fileId && Path.GetExtension(f.FilePath) == fileExt)
-                .Take(5)
-                .Select(f => new {
-                    FileId = f.Id,
-                    FilePath = f.FilePath,
-                    Similarity = 0.75 // Placeholder - would be actual cosine similarity
+            // Get blast radius (recursive dependents)
+            var allDependents = await GetAllDependentsRecursive(fileId, new HashSet<Guid>());
+            var blastRadiusList = allDependents
+                .Where(d => !directDependentIds.Contains(d.FileId))
+                .Select(d => new {
+                    SourceFileId = d.FileId,
+                    SourcePath = d.FilePath,
+                    DependencyType = "indirect",
+                    Score = 0.5 // Placeholder score for indirect
                 })
+                .DistinctBy(d => d.SourceFileId)
                 .ToList();
+
+            // Get semantic neighbors (files with similar embeddings)
+            var embeddings = await _db.GetEmbeddingsByFile(fileId);
+            var semanticNeighbors = new List<object>();
+            
+            if (embeddings.Any())
+            {
+                // Use the first embedding chunk for similarity search
+                var similarFiles = await _db.FindSimilarFiles(embeddings.First().Embedding!, file.RepositoryId, fileId, 5);
+                semanticNeighbors = similarFiles.Select(sf => new {
+                    FileId = sf.File.Id,
+                    FilePath = sf.File.FilePath,
+                    Similarity = sf.Similarity
+                }).ToList<object>();
+            }
 
             // Calculate complexity metrics from file data
             var linesCount = file.TotalLines ?? 0;
@@ -632,7 +653,9 @@ public class RepositoriesController : ControllerBase
                 TotalDeletions = totalDeletions,
                 ChangeHistory = changeHistory,
                 Dependencies = dependencyList,
+                IndirectDependencies = indirectDependencyList,
                 Dependents = dependentList,
+                BlastRadius = blastRadiusList,
                 SemanticNeighbors = semanticNeighbors,
                 Metrics = new {
                     CyclomaticComplexity = cyclomaticComplexity,
@@ -647,6 +670,62 @@ public class RepositoriesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    private async Task<List<FileRef>> GetAllDependenciesRecursive(Guid fileId, HashSet<Guid> visited)
+    {
+        var result = new List<FileRef>();
+        if (visited.Contains(fileId)) return result;
+        visited.Add(fileId);
+
+        var dependencies = await _db.GetDependenciesForFile(fileId);
+        foreach (var dep in dependencies)
+        {
+            // Avoid cycles
+            if (visited.Contains(dep.TargetFileId)) continue;
+
+            var targetFile = await _db.GetFileById(dep.TargetFileId);
+            if (targetFile != null)
+            {
+                result.Add(new FileRef { FileId = targetFile.Id, FilePath = targetFile.FilePath });
+                
+                // Recurse
+                var subDeps = await GetAllDependenciesRecursive(targetFile.Id, visited);
+                result.AddRange(subDeps);
+            }
+        }
+        return result;
+    }
+
+    private async Task<List<FileRef>> GetAllDependentsRecursive(Guid fileId, HashSet<Guid> visited)
+    {
+        var result = new List<FileRef>();
+        if (visited.Contains(fileId)) return result;
+        visited.Add(fileId);
+
+        var dependents = await _db.GetDependentsForFile(fileId);
+        foreach (var dep in dependents)
+        {
+            // Avoid cycles
+            if (visited.Contains(dep.SourceFileId)) continue;
+
+            var sourceFile = await _db.GetFileById(dep.SourceFileId);
+            if (sourceFile != null)
+            {
+                result.Add(new FileRef { FileId = sourceFile.Id, FilePath = sourceFile.FilePath });
+
+                // Recurse
+                var subDeps = await GetAllDependentsRecursive(sourceFile.Id, visited);
+                result.AddRange(subDeps);
+            }
+        }
+        return result;
+    }
+
+    private class FileRef
+    {
+        public Guid FileId { get; set; }
+        public string FilePath { get; set; } = string.Empty;
     }
 }
 

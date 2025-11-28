@@ -49,7 +49,7 @@ public class FilesController : ControllerBase
         {
             try
             {
-                var neighbors = await _db.FindSimilarFiles(embeddings.First().Embedding!, file.RepositoryId, 5);
+                var neighbors = await _db.FindSimilarFiles(embeddings.First().Embedding!, file.RepositoryId, fileId, 5);
                 similarFiles = neighbors.Select(n => n.Item1).ToList();
             }
             catch (Exception ex)

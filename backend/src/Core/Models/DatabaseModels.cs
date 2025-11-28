@@ -44,6 +44,8 @@ public class Commit
     public Guid RepositoryId { get; set; }
     public string Sha { get; set; } = string.Empty;
     public string? Message { get; set; }
+    public string? AuthorName { get; set; }
+    public string? AuthorEmail { get; set; }
     public DateTime CommittedAt { get; set; }
 }
 

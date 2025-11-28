@@ -151,7 +151,62 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         {depCount}
                     </div>
                     <BarProgress label="Direct imports" value={depCount} maxValue={20} color="#3fb950" />
-                    <BarProgress label="Indirect dependencies" value={Math.floor(depCount * 1.5)} maxValue={30} color="#56d364" />
+                    <BarProgress label="Indirect dependencies" value={enhancedData?.indirectDependencies?.length || 0} maxValue={30} color="#56d364" />
+
+                    {enhancedData?.dependencies && enhancedData.dependencies.length > 0 && (
+                        <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '12px' }}>
+                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '8px', fontWeight: 600 }}>Direct Dependencies Files:</div>
+                            <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {enhancedData.dependencies.map((dep: any, i: number) => (
+                                    <div key={i} style={{
+                                        padding: '6px 8px',
+                                        background: '#0d1117',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontFamily: 'monospace',
+                                        color: '#c9d1d9',
+                                        border: '1px solid #30363d',
+                                        display: 'flex',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <span title={dep.targetPath}>{dep.targetPath.split('/').pop()}</span>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <span style={{ color: '#3fb950', fontSize: '10px' }}>{dep.dependencyType || 'import'}</span>
+                                            <span style={{ color: '#8b949e', fontSize: '10px', background: '#30363d', padding: '0 4px', borderRadius: '4px' }}>{dep.score || 1}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {enhancedData?.indirectDependencies && enhancedData.indirectDependencies.length > 0 && (
+                        <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '12px' }}>
+                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '8px', fontWeight: 600 }}>Indirect Dependencies Files:</div>
+                            <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {enhancedData.indirectDependencies.map((dep: any, i: number) => (
+                                    <div key={i} style={{
+                                        padding: '6px 8px',
+                                        background: '#0d1117',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontFamily: 'monospace',
+                                        color: '#c9d1d9',
+                                        border: '1px solid #30363d',
+                                        display: 'flex',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <span title={dep.targetPath}>{dep.targetPath.split('/').pop()}</span>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <span style={{ color: '#56d364', fontSize: '10px' }}>indirect</span>
+                                            <span style={{ color: '#8b949e', fontSize: '10px', background: '#30363d', padding: '0 4px', borderRadius: '4px' }}>{dep.score || 0.5}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div style={{ marginTop: '16px', padding: '12px', background: '#3fb95010', border: '1px solid #3fb95030', borderRadius: '8px' }}>
                         <div style={{ fontSize: '12px', color: '#3fb950', fontWeight: 600, marginBottom: '4px' }}>
                             Dependency Health: Good
@@ -176,7 +231,62 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         {dptCount}
                     </div>
                     <BarProgress label="Direct dependents" value={dptCount} maxValue={20} color="#d29922" />
-                    <BarProgress label="Blast radius" value={Math.floor(dptCount * 2.5)} maxValue={50} color="#f0883e" />
+                    <BarProgress label="Blast radius" value={enhancedData?.blastRadius?.length || 0} maxValue={50} color="#f0883e" />
+
+                    {enhancedData?.dependents && enhancedData.dependents.length > 0 && (
+                        <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '12px' }}>
+                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '8px', fontWeight: 600 }}>Direct Dependent Files:</div>
+                            <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {enhancedData.dependents.map((dep: any, i: number) => (
+                                    <div key={i} style={{
+                                        padding: '6px 8px',
+                                        background: '#0d1117',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontFamily: 'monospace',
+                                        color: '#c9d1d9',
+                                        border: '1px solid #30363d',
+                                        display: 'flex',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <span title={dep.sourcePath}>{dep.sourcePath?.split('/').pop() || 'Unknown'}</span>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <span style={{ color: '#d29922', fontSize: '10px' }}>{dep.dependencyType || 'import'}</span>
+                                            <span style={{ color: '#8b949e', fontSize: '10px', background: '#30363d', padding: '0 4px', borderRadius: '4px' }}>{dep.score || 1}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {enhancedData?.blastRadius && enhancedData.blastRadius.length > 0 && (
+                        <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '12px' }}>
+                            <div style={{ fontSize: '12px', color: '#8b949e', marginBottom: '8px', fontWeight: 600 }}>Blast Radius Files:</div>
+                            <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {enhancedData.blastRadius.map((dep: any, i: number) => (
+                                    <div key={i} style={{
+                                        padding: '6px 8px',
+                                        background: '#0d1117',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontFamily: 'monospace',
+                                        color: '#c9d1d9',
+                                        border: '1px solid #30363d',
+                                        display: 'flex',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <span title={dep.sourcePath}>{dep.sourcePath?.split('/').pop() || 'Unknown'}</span>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <span style={{ color: '#f0883e', fontSize: '10px' }}>indirect</span>
+                                            <span style={{ color: '#8b949e', fontSize: '10px', background: '#30363d', padding: '0 4px', borderRadius: '4px' }}>{dep.score || 0.5}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div style={{ marginTop: '16px', padding: '12px', background: `${impactScore > 70 ? '#f8514910' : '#d2992210'}`, border: `1px solid ${impactScore > 70 ? '#f8514930' : '#d2992230'}`, borderRadius: '8px' }}>
                         <div style={{ fontSize: '12px', color: impactScore > 70 ? '#f85149' : '#d29922', fontWeight: 600, marginBottom: '4px' }}>
                             Impact Level: {impactScore > 70 ? 'Critical ⚠️' : 'Moderate'}
@@ -390,57 +500,43 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         <div style={{ fontSize: '28px', marginBottom: '4px' }}>
                             {analysis.isInOpenPr ? '✅' : '⚪'}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#8b949e' }}>In Open PR</div>
+                        <div style={{ fontSize: '12px', color: '#8b949e' }}>Open PR</div>
                     </div>
                 </div>
             </div>
 
-            {/* Recommendations */}
-            <div className="card" style={{
-                background: 'linear-gradient(135deg, #58a6ff10 0%, #58a6ff05 100%)',
-                border: '1px solid #58a6ff'
-            }}>
+            {/* Recommended Reviewers */}
+            <div className="card">
                 <SectionHeader
-                    icon="💡"
+                    icon="👀"
                     title="Recommended Reviewers"
-                    tooltip="Suggested code reviewers based on semantic ownership and contribution history. These developers have the most context about this file's logic and architecture."
-                    formula="Top(SemanticOwners, 3)"
+                    tooltip="Suggests the best code reviewers based on semantic ownership. These users understand the code's logic and history best."
+                    formula="Top 3 Semantic Owners"
                 />
-                <p style={{ fontSize: '12px', color: '#c9d1d9', marginBottom: '16px' }}>
-                    Based on semantic ownership and contribution patterns
-                </p>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    {analysis.ownership && analysis.ownership.slice(0, 3).map((owner: any, index: number) => (
-                        <div key={index} style={{
-                            padding: '12px 20px',
-                            background: '#161b22',
-                            border: '2px solid #58a6ff',
-                            borderRadius: '24px',
-                            fontSize: '13px',
-                            color: '#58a6ff',
-                            fontWeight: 600,
+                    {analysis.ownership && analysis.ownership.slice(0, 3).map((owner: any, i: number) => (
+                        <div key={i} style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px'
+                            gap: '8px',
+                            padding: '8px 12px',
+                            background: '#0d1117',
+                            borderRadius: '20px',
+                            border: '1px solid #30363d'
                         }}>
-                            <span style={{ fontSize: '18px' }}>👤</span>
-                            User {owner.userId.substring(0, 8)}...
-                            <span style={{
-                                padding: '2px 8px',
-                                background: '#58a6ff',
-                                color: '#0d1117',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: 'bold'
-                            }}>
-                                {owner.semanticScore ? (owner.semanticScore * 100).toFixed(0) : 0}%
+                            <div style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '50%',
+                                background: `conic-gradient(#3fb950 ${owner.semanticScore * 360}deg, #30363d 0deg)`
+                            }} />
+                            <span style={{ fontSize: '13px', color: '#c9d1d9' }}>
+                                User {owner.userId.substring(0, 6)}
                             </span>
                         </div>
                     ))}
                     {(!analysis.ownership || analysis.ownership.length === 0) && (
-                        <span style={{ fontSize: '12px', color: '#8b949e' }}>
-                            No recommendations available yet
-                        </span>
+                        <div style={{ fontSize: '13px', color: '#8b949e' }}>No reviewers recommended yet</div>
                     )}
                 </div>
             </div>
