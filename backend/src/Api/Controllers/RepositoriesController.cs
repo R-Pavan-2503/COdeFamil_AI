@@ -434,7 +434,10 @@ public class RepositoriesController : ControllerBase
             {
                 var authorName = group.Key!;
                 var authorCommits = group.ToList();
-                var authorEmail = authorCommits.First().AuthorEmail ?? authorName;
+                
+                // Try to get real email from users table
+                var user = await _db.GetUserByAuthorName(authorName);
+                var authorEmail = user?.Email ?? authorCommits.First().AuthorEmail ?? authorName;
                 
                 var totalAdditions = 0;
                 var totalDeletions = 0;

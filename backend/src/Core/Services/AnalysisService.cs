@@ -115,13 +115,22 @@ public class AnalysisService : IAnalysisService
                         var commit = await _db.GetCommitBySha(repositoryId, gitCommit.Sha);
                         if (commit == null)
                         {
+                            // NEVER store noreply emails - use user's email or null
+                            var commitEmail = authorUser.Email;
+                            if (string.IsNullOrWhiteSpace(commitEmail) && 
+                                !string.IsNullOrWhiteSpace(authorEmail) && 
+                                !authorEmail.Contains("@users.noreply.github.com"))
+                            {
+                                commitEmail = authorEmail; // Only use real emails
+                            }
+                            
                             commit = await _db.CreateCommit(new DbCommit
                             {
                                 RepositoryId = repositoryId,
                                 Sha = gitCommit.Sha,
                                 Message = gitCommit.MessageShort,
                                 AuthorName = authorUser.AuthorName, // Use GitHub username from user record
-                                AuthorEmail = authorUser.Email ?? authorEmail,
+                                AuthorEmail = commitEmail, // NEVER noreply - use user's email or null
                                 AuthorUserId = authorUser.Id,
                                 CommittedAt = gitCommit.Author.When.UtcDateTime
                             });
@@ -286,7 +295,28 @@ public class AnalysisService : IAnalysisService
                 return existingByUsername;
             }
             
-            // User doesn't exist - create with GitHub username
+            // User doesn't exist - ALWAYS call GitHub API to get real username before creating
+            if (string.IsNullOrWhiteSpace(email) || email.Contains("@users.noreply.github.com"))
+            {
+                _logger.LogInformation($"🔍 Calling GitHub API to get real username for commit {commitSha[..7]}");
+                try
+                {
+                    var commitAuthor = await _github.GetCommitAuthor(repoOwner, repoName, commitSha);
+                    if (commitAuthor != null)
+                    {
+                        // Update githubId and username if we got better data
+                        githubId = commitAuthor.Id;
+                        githubUsername = commitAuthor.Login;
+                        _logger.LogInformation($"✅ GitHub API confirmed: {githubUsername} (ID: {githubId})");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"⚠️ GitHub API call failed: {ex.Message}");
+                }
+            }
+            
+            // Create user - set email to null for noreply, or use real email
             var userEmail = email != null && email.Contains("@users.noreply.github.com") ? null : email;
             
             var newUser = await _db.CreateUser(new User
