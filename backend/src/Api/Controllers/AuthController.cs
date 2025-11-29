@@ -49,7 +49,7 @@ public class AuthController : ControllerBase
                 user = await _db.CreateUser(new User
                 {
                     GithubId = githubUser.Id,
-                    Username = githubUser.Login,
+                    AuthorName = githubUser.Login,
                     Email = githubUser.Email,
                     AvatarUrl = githubUser.AvatarUrl
                 });
@@ -62,10 +62,10 @@ public class AuthController : ControllerBase
                     await _db.UpdateUserEmail(user.Id, githubUser.Email);
                     user.Email = githubUser.Email;
                 }
-                if (user.Username != githubUser.Login)
+                if (user.AuthorName != githubUser.Login)
                 {
-                    await _db.UpdateUserUsername(user.Id, githubUser.Login);
-                    user.Username = githubUser.Login;
+                    await _db.UpdateUserAuthorName(user.Id, githubUser.Login);
+                    user.AuthorName = githubUser.Login;
                 }
                 if (user.AvatarUrl != githubUser.AvatarUrl)
                 {
@@ -79,7 +79,7 @@ public class AuthController : ControllerBase
                 user = new
                 {
                     user.Id,
-                    user.Username,
+                    user.AuthorName,
                     user.Email,
                     user.AvatarUrl
                 },

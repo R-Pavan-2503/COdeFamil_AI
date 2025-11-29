@@ -33,7 +33,7 @@ public class DatabaseService : IDatabaseService
         using var conn = GetConnection();
         await conn.OpenAsync();
 
-        using var cmd = new NpgsqlCommand("SELECT id, github_id, username, email, avatar_url FROM users WHERE github_id = @githubId", conn);
+        using var cmd = new NpgsqlCommand("SELECT id, github_id, author_name, email, avatar_url FROM users WHERE github_id = @githubId", conn);
         cmd.Parameters.AddWithValue("githubId", githubId);
 
         using var reader = await cmd.ExecuteReaderAsync();
@@ -43,7 +43,7 @@ public class DatabaseService : IDatabaseService
             {
                 Id = reader.GetGuid(0),
                 GithubId = reader.GetInt64(1),
-                Username = reader.GetString(2),
+                AuthorName = reader.GetString(2),
                 Email = reader.IsDBNull(3) ? null : reader.GetString(3),
                 AvatarUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
             };
@@ -56,7 +56,7 @@ public class DatabaseService : IDatabaseService
         using var conn = GetConnection();
         await conn.OpenAsync();
 
-        using var cmd = new NpgsqlCommand("SELECT id, github_id, username, email, avatar_url FROM users WHERE email = @email", conn);
+        using var cmd = new NpgsqlCommand("SELECT id, github_id, author_name, email, avatar_url FROM users WHERE email = @email", conn);
         cmd.Parameters.AddWithValue("email", email);
 
         using var reader = await cmd.ExecuteReaderAsync();
@@ -66,7 +66,7 @@ public class DatabaseService : IDatabaseService
             {
                 Id = reader.GetGuid(0),
                 GithubId = reader.GetInt64(1),
-                Username = reader.GetString(2),
+                AuthorName = reader.GetString(2),
                 Email = reader.IsDBNull(3) ? null : reader.GetString(3),
                 AvatarUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
             };
@@ -74,13 +74,12 @@ public class DatabaseService : IDatabaseService
         return null;
     }
 
-    public async Task<User?> GetUserByUsername(string username)
+    public async Task<User?> GetUserByAuthorName(string authorName)
     {
-        using var conn = GetConnection();
-        await conn.OpenAsync();
+        using var conn = GetConnection();        await conn.OpenAsync();
 
-        using var cmd = new NpgsqlCommand("SELECT id, github_id, username, email, avatar_url FROM users WHERE username = @username", conn);
-        cmd.Parameters.AddWithValue("username", username);
+        using var cmd = new NpgsqlCommand("SELECT id, github_id, author_name, email, avatar_url FROM users WHERE author_name = @authorName", conn);
+        cmd.Parameters.AddWithValue("authorName", authorName);
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
@@ -89,7 +88,7 @@ public class DatabaseService : IDatabaseService
             {
                 Id = reader.GetGuid(0),
                 GithubId = reader.GetInt64(1),
-                Username = reader.GetString(2),
+                AuthorName = reader.GetString(2),
                 Email = reader.IsDBNull(3) ? null : reader.GetString(3),
                 AvatarUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
             };
@@ -103,11 +102,11 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "INSERT INTO users (github_id, username, email, avatar_url) VALUES (@githubId, @username, @email, @avatarUrl) RETURNING id",
+            "INSERT INTO users (github_id, author_name, email, avatar_url) VALUES (@githubId, @authorName, @email, @avatarUrl) RETURNING id",
             conn);
 
         cmd.Parameters.AddWithValue("githubId", user.GithubId);
-        cmd.Parameters.AddWithValue("username", user.Username);
+        cmd.Parameters.AddWithValue("authorName", user.AuthorName);
         cmd.Parameters.AddWithValue("email", (object?)user.Email ?? DBNull.Value);
         cmd.Parameters.AddWithValue("avatarUrl", (object?)user.AvatarUrl ?? DBNull.Value);
 
@@ -120,7 +119,7 @@ public class DatabaseService : IDatabaseService
         using var conn = GetConnection();
         await conn.OpenAsync();
 
-        using var cmd = new NpgsqlCommand("SELECT id, github_id, username, email, avatar_url FROM users WHERE id = @id", conn);
+        using var cmd = new NpgsqlCommand("SELECT id, github_id, author_name, email, avatar_url FROM users WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", id);
 
         using var reader = await cmd.ExecuteReaderAsync();
@@ -130,7 +129,7 @@ public class DatabaseService : IDatabaseService
             {
                 Id = reader.GetGuid(0),
                 GithubId = reader.GetInt64(1),
-                Username = reader.GetString(2),
+                AuthorName = reader.GetString(2),
                 Email = reader.IsDBNull(3) ? null : reader.GetString(3),
                 AvatarUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
             };
@@ -150,14 +149,14 @@ public class DatabaseService : IDatabaseService
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task UpdateUserUsername(Guid userId, string username)
+    public async Task UpdateUserAuthorName(Guid userId, string authorName)
     {
         using var conn = GetConnection();
         await conn.OpenAsync();
 
-        using var cmd = new NpgsqlCommand("UPDATE users SET username = @username WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("username", username);
-        cmd.Parameters.AddWithValue("id", userId);
+        using var cmd = new NpgsqlCommand("UPDATE users SET author_name = @authorName WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("authorName", authorName);
+        cmd.Parameters.AddWithValue("id",userId);
 
         await cmd.ExecuteNonQueryAsync();
     }
@@ -501,7 +500,7 @@ public class DatabaseService : IDatabaseService
         await conn.OpenAsync();
 
         using var cmd = new NpgsqlCommand(
-            "INSERT INTO commits (repository_id, sha, message, author_name, author_email, committed_at) VALUES (@repoId, @sha, @message, @authorName, @authorEmail, @committedAt) RETURNING id",
+            "INSERT INTO commits (repository_id, sha, message, author_name, author_email, author_user_id, committed_at) VALUES (@repoId, @sha, @message, @authorName, @authorEmail, @authorUserId, @committedAt) RETURNING id",
             conn);
 
         cmd.Parameters.AddWithValue("repoId", commit.RepositoryId);
@@ -509,6 +508,7 @@ public class DatabaseService : IDatabaseService
         cmd.Parameters.AddWithValue("message", (object?)commit.Message ?? DBNull.Value);
         cmd.Parameters.AddWithValue("authorName", (object?)commit.AuthorName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("authorEmail", (object?)commit.AuthorEmail ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("authorUserId", (object?)commit.AuthorUserId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("committedAt", commit.CommittedAt);
 
         commit.Id = (Guid)(await cmd.ExecuteScalarAsync())!;

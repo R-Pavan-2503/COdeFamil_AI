@@ -113,3 +113,11 @@ public class ConflictingPr
     public double Risk { get; set; }
     public List<string> ConflictingFiles { get; set; } = new();
 }
+
+public class GitHubCommitAuthor
+{
+    public string Login { get; set; } = string.Empty;
+    public long Id { get; set; }
+    public string? AvatarUrl { get; set; }
+}
+

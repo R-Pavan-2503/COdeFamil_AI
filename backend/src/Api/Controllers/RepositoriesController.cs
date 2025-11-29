@@ -185,7 +185,7 @@ public class RepositoriesController : ControllerBase
 
             // Get user to determine if this is their repo
             var user = await _db.GetUserById(request.UserId);
-            bool isMine = user != null && owner.Equals(user.Username, StringComparison.OrdinalIgnoreCase);
+            bool isMine = user != null && owner.Equals(user.AuthorName, StringComparison.OrdinalIgnoreCase);
 
             // Create repository record
             var repository = await _db.CreateRepository(new Repository

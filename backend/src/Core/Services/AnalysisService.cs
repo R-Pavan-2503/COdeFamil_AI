@@ -101,8 +101,15 @@ public class AnalysisService : IAnalysisService
                         var authorEmail = gitCommit.Author.Email ?? "unknown@example.com";
                         var authorName = gitCommit.Author.Name ?? "unknown";
 
-                        // Ensure author exists in DB
-                        var authorUser = await GetOrCreateAuthorUser(0, authorEmail, authorName);
+                        // Get or create user (with GitHub API lookup for unknown emails)
+                        var authorUser = await GetOrCreateAuthorUser(
+                            authorEmail,
+                            authorName,
+                            owner,
+                            repoName,
+                            gitCommit.Sha,
+                            repositoryId
+                        );
 
                         // Store commit if not already present
                         var commit = await _db.GetCommitBySha(repositoryId, gitCommit.Sha);
@@ -113,8 +120,9 @@ public class AnalysisService : IAnalysisService
                                 RepositoryId = repositoryId,
                                 Sha = gitCommit.Sha,
                                 Message = gitCommit.MessageShort,
-                                AuthorName = authorName,
-                                AuthorEmail = authorEmail,
+                                AuthorName = authorUser.AuthorName, // Use GitHub username from user record
+                                AuthorEmail = authorUser.Email ?? authorEmail,
+                                AuthorUserId = authorUser.Id,
                                 CommittedAt = gitCommit.Author.When.UtcDateTime
                             });
                         }
@@ -186,72 +194,134 @@ public class AnalysisService : IAnalysisService
 
     // ---------------------------------------------------------------------
     // Helper: Get or create a user record for an author
-    // Prioritizes GitHub ID, then username, then email to avoid duplicates
+    // Email-first approach: Only call GitHub API for unknown emails
     // ---------------------------------------------------------------------
-    private async Task<User> GetOrCreateAuthorUser(long githubId, string? email, string username)
+    private async Task<User> GetOrCreateAuthorUser(
+        string email,
+        string username,
+        string repoOwner,
+        string repoName,
+        string commitSha,
+        Guid repositoryId)
     {
-        // Parse GitHub noreply emails to extract real username
-        // Format: "123456789+real-username@users.noreply.github.com"
-        string actualUsername = username;
+        // Step 1: Parse noreply emails to extract GitHub username and ID
+        string? githubUsername = null;
+        long githubId = 0;
+        
         if (!string.IsNullOrWhiteSpace(email) && email.Contains("@users.noreply.github.com"))
         {
             var parts = email.Split('@')[0].Split('+');
             if (parts.Length == 2)
             {
-                // Found GitHub ID + username format
-                actualUsername = parts[1]; // Use the GitHub username from email
-                _logger.LogInformation($"Parsed noreply email: '{email}' -> username: '{actualUsername}'");
-                
-                // Also try to extract GitHub ID if we don't have one
-                if (githubId == 0 && long.TryParse(parts[0], out long parsedGithubId))
-                {
-                    githubId = parsedGithubId;
-                    _logger.LogInformation($"Extracted GitHub ID from noreply email: {githubId}");
-                }
+                githubUsername = parts[1]; // Real GitHub username
+                long.TryParse(parts[0], out githubId);
+                _logger.LogInformation($"📧 Parsed noreply email: '{email}' → GitHub username: '{githubUsername}', ID: {githubId}");
             }
         }
 
-        // Priority 1: Try to find by GitHub ID (if available)
-        if (githubId > 0)
-        {
-            var existingByGithubId = await _db.GetUserByGitHubId(githubId);
-            if (existingByGithubId != null)
-            {
-                return existingByGithubId;
-            }
-        }
-
-        // Priority 2: Try to find by username (use parsed username if from noreply email)
-        var existingByUsername = await _db.GetUserByUsername(actualUsername);
-        if (existingByUsername != null)
-        {
-            return existingByUsername;
-        }
-
-        // Priority 3: Try to find by email (if available and NOT a noreply email)
+        // Step 2: For REAL emails (not noreply), check if user exists by email FIRST
         if (!string.IsNullOrWhiteSpace(email) && !email.Contains("@users.noreply.github.com"))
         {
             var existingByEmail = await _db.GetUserByEmail(email);
             if (existingByEmail != null)
             {
+                _logger.LogInformation($"✅ Found existing user by email '{email}': {existingByEmail.AuthorName}");
                 return existingByEmail;
+            }
+            
+            // Email not found - need to call GitHub API to get real username
+            _logger.LogInformation($"🔍 Unknown email '{email}' - calling GitHub API for commit {commitSha[..7]}");
+            
+            try
+            {
+                var commitAuthor = await _github.GetCommitAuthor(repoOwner, repoName, commitSha);
+                if (commitAuthor != null)
+                {
+                    githubUsername = commitAuthor.Login;
+                    githubId = commitAuthor.Id;
+                    _logger.LogInformation($"✅ GitHub API resolved: {githubUsername} (ID: {githubId})");
+                }
+                else
+                {
+                    _logger.LogWarning($"⚠️ GitHub API returned null for commit {commitSha[..7]}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"⚠️ GitHub API call failed for commit {commitSha[..7]}: {ex.Message}");
             }
         }
 
-        // Create a new user with real data - no fake emails
-        // For noreply emails, set email to null instead of storing the fake one
-        var userEmail = (email != null && email.Contains("@users.noreply.github.com")) ? null : email;
-        
-        var newUser = await _db.CreateUser(new User
+        // Step 3: If we have GitHub username, check if user exists
+        if (!string.IsNullOrWhiteSpace(githubUsername))
         {
-            GithubId = githubId, // Use real GitHub ID or 0
-            Username = actualUsername, // Use parsed username if from noreply email
-            Email = userEmail, // null for noreply emails
-            AvatarUrl = string.IsNullOrWhiteSpace(actualUsername) 
-                ? "https://ui-avatars.com/api/?name=Unknown" 
-                : $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(actualUsername)}"
+            // First try by GitHub ID
+            if (githubId > 0)
+            {
+                var existingById = await _db.GetUserByGitHubId(githubId);
+                if (existingById != null)
+                {
+                    // Update email if different
+                    if (!string.IsNullOrWhiteSpace(email) && !email.Contains("@users.noreply.github.com") && existingById.Email != email)
+                    {
+                        await _db.UpdateUserEmail(existingById.Id, email);
+                        existingById.Email = email;
+                        _logger.LogInformation($"📝 Updated email for user '{existingById.AuthorName}' to '{email}'");
+                    }
+                    return existingById;
+                }
+            }
+            
+            // Then try by GitHub username
+            var existingByUsername = await _db.GetUserByAuthorName(githubUsername);
+            if (existingByUsername != null)
+            {
+                // Update email if different
+                if (!string.IsNullOrWhiteSpace(email) && !email.Contains("@users.noreply.github.com") && existingByUsername.Email != email)
+                {
+                    await _db.UpdateUserEmail(existingByUsername.Id, email);
+                    existingByUsername.Email = email;
+                    _logger.LogInformation($"📝 Updated email for user '{existingByUsername.AuthorName}' to '{email}'");
+                }
+                return existingByUsername;
+            }
+            
+            // User doesn't exist - create with GitHub username
+            var userEmail = email != null && email.Contains("@users.noreply.github.com") ? null : email;
+            
+            var newUser = await _db.CreateUser(new User
+            {
+                GithubId = githubId,
+                AuthorName = githubUsername, // Use GitHub username, NOT Git config name
+                Email = userEmail,
+                AvatarUrl = $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(githubUsername)}"
+            });
+            
+            _logger.LogInformation($"➕ Created new user: {githubUsername} (GitHub ID: {githubId}, Email: {userEmail ?? "none"})");
+            return newUser;
+        }
+
+        // Step 4: Fallback - couldn't get GitHub username (API failed or noreply parse failed)
+        // Use Git config name as last resort
+        _logger.LogWarning($"⚠️ Could not resolve GitHub username for '{username}' - using Git config name as fallback");
+        
+        var fallbackUser = await _db.GetUserByAuthorName(username);
+        if (fallbackUser != null)
+        {
+            return fallbackUser;
+        }
+        
+        var fallbackEmail = email != null && email.Contains("@users.noreply.github.com") ? null : email;
+        var createdFallbackUser = await _db.CreateUser(new User
+        {
+            GithubId = 0,
+            AuthorName = username, // Fallback to Git config name
+            Email = fallbackEmail,
+            AvatarUrl = $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(username)}"
         });
-        return newUser;
+        
+        _logger.LogWarning($"➕ Created fallback user: {username}");
+        return createdFallbackUser;
     }
 
     // ---------------------------------------------------------------------
@@ -418,8 +488,13 @@ public class AnalysisService : IAnalysisService
             var authorDelta = deltas.Sum();
             var ownershipScore = (decimal)(authorDelta / totalDelta * 100);
 
-            // Resolve or create user record
-            var user = await GetOrCreateAuthorUser(0, authorEmail, authorEmail.Split('@')[0]);
+            // User should already exist from commit processing - just look up by email
+            var user = await _db.GetUserByEmail(authorEmail);
+            if (user == null)
+            {
+                _logger.LogWarning($"⚠️ User with email {authorEmail} not found during ownership calculation");
+                continue;
+            }
 
             _logger.LogInformation($"👤 File {fileId}: {authorEmail} owns {ownershipScore:F2}%");
             await _db.UpsertFileOwnership(new FileOwnership
@@ -581,11 +656,28 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
                     continue;
                 }
 
-                // Get or create author user - use real GitHub data
+                // Get or create author user - we have full GitHub data for PRs
                 var authorGithubId = pr.User.Id; // Real GitHub ID
                 var authorEmail = pr.User.Email; // Can be null - that's OK
                 var authorUsername = pr.User.Login; // Real GitHub username
-                var author = await GetOrCreateAuthorUser(authorGithubId, authorEmail, authorUsername);
+                
+                // For PRs, we have real GitHub data so we can directly create/find user
+                var author = await _db.GetUserByGitHubId(authorGithubId);
+                if (author == null)
+                {
+                    author = await _db.GetUserByAuthorName(authorUsername);
+                }
+                if (author == null)
+                {
+                    author = await _db.CreateUser(new User
+                    {
+                        GithubId = authorGithubId,
+                        AuthorName = authorUsername,
+                        Email = authorEmail,
+                        AvatarUrl = pr.User.AvatarUrl ?? $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(authorUsername)}"
+                    });
+                    _logger.LogInformation($"➕ Created user from PR: {authorUsername}");
+                }
 
                 // Create PR record
                 var dbPr = await _db.CreatePullRequest(new PullRequest
@@ -899,10 +991,17 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
             }
             foreach (var filePath in changedFiles)
             {
-                // For incremental updates we don't have author info – use placeholder
-                var placeholderEmail = "incremental@update.com";
-                var placeholderUser = await GetOrCreateAuthorUser(0, placeholderEmail, "incremental");
-                await ProcessFile(repo, commit, commitSha, filePath, placeholderUser.Id, placeholderEmail);
+                // For incremental updates we don't have author info – use commit author if available
+                var placeholderEmail = commit.AuthorEmail ?? "incremental@update.com";
+                var placeholderUserId = commit.AuthorUserId ?? Guid.Empty;
+                
+                if (placeholderUserId == Guid.Empty)
+                {
+                    _logger.LogWarning($"⚠️ No author for incremental update, skipping file {filePath}");
+                    continue;
+                }
+                
+                await ProcessFile(repo, commit, commitSha, filePath, placeholderUserId, placeholderEmail);
             }
             _logger.LogInformation($"Incremental update complete for {changedFiles.Count} files");
         }

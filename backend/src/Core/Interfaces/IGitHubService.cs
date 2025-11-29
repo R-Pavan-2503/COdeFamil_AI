@@ -18,6 +18,8 @@ public interface IGitHubService
     // Commits
     Task<IReadOnlyList<GitHubCommit>> GetCommits(string owner, string repo);
     Task<GitHubCommit> GetCommit(string owner, string repo, string sha, string? accessToken = null);
+    Task<GitHubCommitAuthor?> GetCommitAuthor(string owner, string repo, string sha, string? accessToken = null);
+
 
     // Pull Requests
     Task<IReadOnlyList<Octokit.PullRequest>> GetPullRequests(string owner, string repo, PullRequestRequest? request = null);

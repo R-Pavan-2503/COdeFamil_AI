@@ -151,6 +151,32 @@ public async Task<Octokit.Repository> GetRepository(string owner, string repo)
         }
     }
 
+    public async Task<GitHubCommitAuthor?> GetCommitAuthor(string owner, string repo, string sha, string? accessToken = null)
+    {
+        try
+        {
+            var commit = await GetCommit(owner, repo, sha, accessToken);
+            
+            // Extract author info from commit.Author (GitHub user)
+            if (commit?.Author != null)
+            {
+                return new GitHubCommitAuthor
+                {
+                    Login = commit.Author.Login,
+                    Id = commit.Author.Id,
+                    AvatarUrl = commit.Author.AvatarUrl
+                };
+            }
+            return null;
+        }
+        catch (Exception)
+        {
+            // Author not found or API error
+            return null;
+        }
+    }
+
+
     // Pull Requests
     public async Task<IReadOnlyList<Octokit.PullRequest>> GetPullRequests(string owner, string repo, PullRequestRequest? request = null)
     {

@@ -4,7 +4,7 @@ public class User
 {
     public Guid Id { get; set; }
     public long GithubId { get; set; }
-    public string Username { get; set; } = string.Empty;
+    public string AuthorName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? AvatarUrl { get; set; }
 }
@@ -46,6 +46,7 @@ public class Commit
     public string? Message { get; set; }
     public string? AuthorName { get; set; }
     public string? AuthorEmail { get; set; }
+    public Guid? AuthorUserId { get; set; }  // Link to users table
     public DateTime CommittedAt { get; set; }
 }
 
