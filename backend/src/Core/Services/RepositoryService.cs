@@ -164,4 +164,31 @@ public class RepositoryService : IRepositoryService
             .OrderByDescending(c => c.Author.When)
             .ToList();
     }
+
+    public (int additions, int deletions) GetFileLineStats(LibGit2Sharp.Repository repo, LibGit2Sharp.Commit commit, string filePath)
+    {
+        if (!commit.Parents.Any())
+        {
+            // First commit - everything is added, nothing deleted
+            var firstCommitContent = GetFileContentAtCommit(repo, commit.Sha, filePath);
+            if (string.IsNullOrEmpty(firstCommitContent))
+                return (0, 0);
+            
+            var lines = firstCommitContent.Split('\n').Length;
+            return (lines, 0);
+        }
+
+        var parent = commit.Parents.First();
+        var patch = repo.Diff.Compare<Patch>(parent.Tree, commit.Tree);
+        
+        foreach (var change in patch)
+        {
+            if (change.Path == filePath)
+            {
+                return (change.LinesAdded, change.LinesDeleted);
+            }
+        }
+
+        return (0, 0);
+    }
 }

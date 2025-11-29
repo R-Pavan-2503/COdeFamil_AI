@@ -148,7 +148,7 @@ public class AnalysisService : IAnalysisService
 
                         foreach (var filePath in changedFiles)
                         {
-                            await ProcessFile(repo, commit, gitCommit.Sha, filePath, authorUser.Id, authorEmail);
+                            await ProcessFile(repo, commit, gitCommit, filePath, authorUser.Id, authorEmail);
                         }
 
                         processedCount++;
@@ -360,7 +360,7 @@ public class AnalysisService : IAnalysisService
     private async Task ProcessFile(
         LibGitRepository repo,
         DbCommit commit,
-        string commitSha,
+        LibGitCommit gitCommit,
         string filePath,
         Guid authorId,
         string authorEmail)
@@ -377,7 +377,7 @@ public class AnalysisService : IAnalysisService
         }
 
         // Retrieve file content at this commit
-        var content = _repoService.GetFileContentAtCommit(repo, commitSha, filePath);
+        var content = _repoService.GetFileContentAtCommit(repo, gitCommit.Sha, filePath);
         if (string.IsNullOrEmpty(content)) return; // nothing to analyse
 
         // Determine language for parsing
@@ -480,14 +480,15 @@ public class AnalysisService : IAnalysisService
         }
 
         // -----------------------------------------------------------------
-        // Record file change (additions approximated by line count)
+        // Record file change with REAL additions/deletions from Git diff
         // -----------------------------------------------------------------
+        var (additions, deletions) = _repoService.GetFileLineStats(repo, gitCommit, filePath);
         await _db.CreateFileChange(new FileChange
         {
             CommitId = commit.Id,
             FileId = file.Id,
-            Additions = content.Split('\n').Length,
-            Deletions = 0
+            Additions = additions,
+            Deletions = deletions
         });
     }
 
@@ -1002,15 +1003,18 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
                 return;
             }
             using var repo = _repoService.GetRepository(repository.OwnerUsername, repository.Name);
+            
+            // Always get the Git commit object
+            var gitCommit = repo.Lookup(commitSha) as LibGitCommit;
+            if (gitCommit == null)
+            {
+                _logger.LogError($"Commit {commitSha} not found in repository");
+                return;
+            }
+            
             var commit = await _db.GetCommitBySha(repositoryId, commitSha);
             if (commit == null)
             {
-                var gitCommit = repo.Lookup(commitSha) as LibGitCommit;
-                if (gitCommit == null)
-                {
-                    _logger.LogError($"Commit {commitSha} not found in repository");
-                    return;
-                }
                 commit = await _db.CreateCommit(new DbCommit
                 {
                     RepositoryId = repositoryId,
@@ -1031,7 +1035,7 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
                     continue;
                 }
                 
-                await ProcessFile(repo, commit, commitSha, filePath, placeholderUserId, placeholderEmail);
+                await ProcessFile(repo, commit, gitCommit, filePath, placeholderUserId, placeholderEmail);
             }
             _logger.LogInformation($"Incremental update complete for {changedFiles.Count} files");
         }

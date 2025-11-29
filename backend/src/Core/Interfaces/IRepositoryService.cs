@@ -49,4 +49,9 @@ public interface IRepositoryService
     /// Get commits for a specific branch.
     /// </summary>
     List<LibGit2Sharp.Commit> GetCommitsByBranch(LibGit2Sharp.Repository repo, string branchName);
+
+    /// <summary>
+    /// Get actual line additions and deletions for a file in a commit.
+    /// </summary>
+    (int additions, int deletions) GetFileLineStats(LibGit2Sharp.Repository repo, LibGit2Sharp.Commit commit, string filePath);
 }
