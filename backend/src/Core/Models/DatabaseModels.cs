@@ -18,6 +18,8 @@ public class Repository
     public bool IsActiveBlocking { get; set; }
     public Guid? ConnectedByUserId { get; set; }
     public bool IsMine { get; set; }
+    public string? LastAnalyzedCommitSha { get; set; }
+    public DateTime? LastRefreshAt { get; set; }
 }
 
 public class Branch

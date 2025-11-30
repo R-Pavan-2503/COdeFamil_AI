@@ -22,6 +22,13 @@ export default function RepoView({ user }: RepoViewProps) {
     const [prFilter, setPrFilter] = useState<'all' | 'open' | 'closed'>('all');
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    // Helper to reload all data
+    const loadRepoData = async () => {
+        await loadRepository();
+        if (activeTab === 'commits') await loadCommits();
+        else if (activeTab === 'prs') await loadPRs();
+        else if (activeTab === 'files') await loadFiles();
+    };
 
     useEffect(() => {
         loadRepository();
@@ -105,6 +112,65 @@ export default function RepoView({ user }: RepoViewProps) {
         }
     };
 
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
+
+    // Auto-refresh on load if stale (> 1 hour)
+    useEffect(() => {
+        if (repository?.lastRefreshAt) {
+            setLastRefreshTime(repository.lastRefreshAt);
+            const lastRefresh = new Date(repository.lastRefreshAt);
+            const now = new Date();
+            const diffHours = (now.getTime() - lastRefresh.getTime()) / (1000 * 60 * 60);
+
+            if (diffHours > 1) {
+                console.log("Repository is stale, triggering auto-refresh...");
+                refreshRepository();
+            }
+        }
+    }, [repository]);
+
+    // Poll for updates when refreshing
+    useEffect(() => {
+        let interval: any;
+        if (isRefreshing && repository) {
+            interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`http://localhost:5000/repositories/${repositoryId}`);
+                    const data = await res.json();
+
+                    // Check if timestamp updated
+                    if (data.lastRefreshAt !== lastRefreshTime) {
+                        setRepository(data);
+                        setLastRefreshTime(data.lastRefreshAt);
+                        setIsRefreshing(false);
+                        // Re-fetch commits and files to show new data
+                        loadRepoData();
+                    }
+                } catch (err) {
+                    console.error("Polling error:", err);
+                }
+            }, 3000); // Poll every 3 seconds
+        }
+        return () => clearInterval(interval);
+    }, [isRefreshing, lastRefreshTime, repositoryId]);
+
+    const refreshRepository = async () => {
+        if (isRefreshing || !repositoryId) return;
+
+        setIsRefreshing(true);
+        try {
+            await fetch(`http://localhost:5000/repositories/${repositoryId}/refresh`, {
+                method: 'POST'
+            });
+            // Don't set isRefreshing(false) here - wait for polling to detect the change
+        } catch (err) {
+            console.error("Failed to trigger refresh:", err);
+            setIsRefreshing(false);
+            alert("Failed to start refresh");
+        }
+    };
+
     if (loading) {
         return <div className="container">Loading repository...</div>;
     }
@@ -120,7 +186,36 @@ export default function RepoView({ user }: RepoViewProps) {
             <div style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div>
-                        <h1>{repository.ownerUsername}/{repository.name}</h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <h1>{repository.ownerUsername}/{repository.name}</h1>
+                            <button
+                                onClick={refreshRepository}
+                                disabled={isRefreshing}
+                                style={{
+                                    background: isRefreshing ? '#30363d' : '#21262d',
+                                    border: '1px solid #30363d',
+                                    color: isRefreshing ? '#8b949e' : '#c9d1d9',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: isRefreshing ? 'default' : 'pointer',
+                                    fontSize: '12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                {isRefreshing ? (
+                                    <>
+                                        <span className="animate-spin">↻</span> Refreshing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>↻</span> Refresh
+                                    </>
+                                )}
+                            </button>
+                        </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
                             <span style={{
                                 padding: '4px 12px',
@@ -131,6 +226,11 @@ export default function RepoView({ user }: RepoViewProps) {
                             }}>
                                 {repository.status || 'unknown'}
                             </span>
+                            {repository.lastRefreshAt && (
+                                <span style={{ fontSize: '12px', color: '#8b949e' }}>
+                                    Last updated: {new Date(repository.lastRefreshAt).toLocaleString()}
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -159,6 +259,42 @@ export default function RepoView({ user }: RepoViewProps) {
                                     </option>
                                 ))}
                             </select>
+
+                            <button
+                                onClick={refreshRepository}
+                                disabled={isRefreshing}
+                                style={{
+                                    background: '#21262d',
+                                    color: '#c9d1d9',
+                                    border: '1px solid #30363d',
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '14px',
+                                    cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    marginLeft: '8px'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isRefreshing) e.currentTarget.style.background = '#30363d';
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isRefreshing) e.currentTarget.style.background = '#21262d';
+                                }}
+                            >
+                                <span style={{
+                                    display: 'inline-block',
+                                    animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
+                                }}>↻</span>
+                                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                            <style>{`
+                                @keyframes spin {
+                                    from { transform: rotate(0deg); }
+                                    to { transform: rotate(360deg); }
+                                }
+                            `}</style>
                         </div>
                     )}
                 </div>

@@ -98,23 +98,28 @@ public class AnalysisService : IAnalysisService
                 {
                     try
                     {
-                        var authorEmail = gitCommit.Author.Email ?? "unknown@example.com";
-                        var authorName = gitCommit.Author.Name ?? "unknown";
-
-                        // Get or create user (with GitHub API lookup for unknown emails)
-                        var authorUser = await GetOrCreateAuthorUser(
-                            authorEmail,
-                            authorName,
-                            owner,
-                            repoName,
-                            gitCommit.Sha,
-                            repositoryId
-                        );
-
-                        // Store commit if not already present
+                        // Check if commit already exists
                         var commit = await _db.GetCommitBySha(repositoryId, gitCommit.Sha);
+                        bool isNewCommit = false;
+
                         if (commit == null)
                         {
+                            isNewCommit = true;
+                            
+                            var authorEmail = gitCommit.Author.Email ?? "unknown@example.com";
+                            var authorName = gitCommit.Author.Name ?? "unknown";
+
+                            // Get or create user (with GitHub API lookup for unknown emails)
+                            // ONLY do this for NEW commits
+                            var authorUser = await GetOrCreateAuthorUser(
+                                authorEmail,
+                                authorName,
+                                owner,
+                                repoName,
+                                gitCommit.Sha,
+                                repositoryId
+                            );
+
                             // NEVER store noreply emails - use user's email or null
                             var commitEmail = authorUser.Email;
                             if (string.IsNullOrWhiteSpace(commitEmail) && 
@@ -143,12 +148,19 @@ public class AnalysisService : IAnalysisService
                             await _db.LinkCommitToBranch(commit.Id, branch.Id);
                         }
 
-                        // Get changed files for this commit
-                        var changedFiles = _repoService.GetChangedFiles(repo, gitCommit);
-
-                        foreach (var filePath in changedFiles)
+                        // ONLY process files if this is a NEW commit
+                        if (isNewCommit)
                         {
-                            await ProcessFile(repo, commit, gitCommit, filePath, authorUser.Id, authorEmail);
+                            // Get changed files for this commit
+                            var changedFiles = _repoService.GetChangedFiles(repo, gitCommit);
+
+                            foreach (var filePath in changedFiles)
+                            {
+                                if (commit != null)
+                                {
+                                    await ProcessFile(repo, commit, gitCommit, filePath, commit.AuthorUserId ?? Guid.Empty, commit.AuthorEmail ?? "");
+                                }
+                            }
                         }
 
                         processedCount++;
@@ -189,6 +201,12 @@ public class AnalysisService : IAnalysisService
             // Step 6: Register webhook for real‑time updates
             _logger.LogInformation($"🔔 Registering webhook for {owner}/{repoName}...");
             await RegisterWebhook(owner, repoName);
+
+            // Step 7: Update last analyzed commit and refresh time
+            if (repo.Head.Tip != null)
+            {
+                await _db.UpdateLastAnalyzedCommit(repositoryId, repo.Head.Tip.Sha);
+            }
 
             await _db.UpdateRepositoryStatus(repositoryId, "ready");
             _logger.LogInformation($"🎉 COMPLETE analysis finished for {owner}/{repoName}");

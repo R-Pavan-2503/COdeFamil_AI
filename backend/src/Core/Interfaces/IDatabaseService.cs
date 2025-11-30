@@ -18,6 +18,8 @@ public interface IDatabaseService
     Task<Repository?> GetRepositoryByName(string owner, string name);
     Task<Repository> CreateRepository(Repository repository);
     Task UpdateRepositoryStatus(Guid repositoryId, string status);
+    Task UpdateLastRefreshTime(Guid repositoryId);
+    Task UpdateLastAnalyzedCommit(Guid repositoryId, string commitSha);
     Task<List<Repository>> GetUserRepositories(Guid userId);
     Task<Repository?> GetRepositoryById(Guid id);
     Task<List<Repository>> GetAnalyzedRepositories(Guid userId, string filter);

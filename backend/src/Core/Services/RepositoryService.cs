@@ -107,7 +107,11 @@ public class RepositoryService : IRepositoryService
         {
             using var repo = GetRepository(owner, repoName);
             var remote = repo.Network.Remotes["origin"];
-            var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+            
+            // Force update local refs to match remote (mirror behavior)
+            // This ensures repo.Branches["main"] points to the latest commit
+            var refSpecs = new[] { "+refs/heads/*:refs/heads/*" };
+            
             Commands.Fetch(repo, remote.Name, refSpecs, null, "fetch");
         });
     }
