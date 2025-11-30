@@ -22,12 +22,14 @@ export default function RepoView({ user }: RepoViewProps) {
     const [prFilter, setPrFilter] = useState<'all' | 'open' | 'closed'>('all');
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+
     // Helper to reload all data
     const loadRepoData = async () => {
         await loadRepository();
-        if (activeTab === 'commits') await loadCommits();
-        else if (activeTab === 'prs') await loadPRs();
-        else if (activeTab === 'files') await loadFiles();
+        await loadBranches();
+        await loadCommits();
+        await loadPRs();
+        await loadFiles();
     };
 
     useEffect(() => {

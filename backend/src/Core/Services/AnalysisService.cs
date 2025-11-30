@@ -65,10 +65,26 @@ public class AnalysisService : IAnalysisService
             var branches = _repoService.GetAllBranches(repo);
             _logger.LogInformation($"📊 Found{branches.Count} branches to process");
 
-            // Step 3: Store branch information in database
+            // Step 3: Store branch information in database and prune deleted branches
+            var dbBranches = await _db.GetBranchesByRepository(repositoryId);
+            var dbBranchNames = dbBranches.Select(b => b.Name).ToHashSet();
+            var gitBranchNames = branches.ToHashSet();
+
+            // Identify and delete stale branches
+            foreach (var dbBranch in dbBranches)
+            {
+                if (!gitBranchNames.Contains(dbBranch.Name))
+                {
+                    _logger.LogInformation($"🗑️ Pruning stale branch from DB: {dbBranch.Name}");
+                    await _db.DeleteBranch(dbBranch.Id);
+                }
+            }
+
             foreach (var branchName in branches)
             {
                 var isDefault = branchName == "main" || branchName == "master";
+                // We can skip checking DB if we know we just pruned the stale ones, 
+                // but checking if it exists is safer/idempotent
                 var branch = await _db.GetBranchByName(repositoryId, branchName);
 
                 if (branch == null)

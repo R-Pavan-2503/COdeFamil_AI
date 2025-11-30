@@ -111,31 +111,47 @@ public class RepositoryRefreshController : ControllerBase
                 }
             }
 
-            if (!newCommits.Any())
+            // Step 5: Check for branch changes (additions/deletions)
+            var dbBranches = await _db.GetBranchesByRepository(repository.Id);
+            var dbBranchNames = dbBranches.Select(b => b.Name).ToHashSet();
+            var gitBranchNames = branches.ToHashSet();
+            
+            _logger.LogInformation($"DB Branches: {string.Join(", ", dbBranchNames)}");
+            _logger.LogInformation($"Git Branches: {string.Join(", ", gitBranchNames)}");
+
+            bool branchesChanged = !dbBranchNames.SetEquals(gitBranchNames);
+
+            if (newCommits.Count > 0 || branchesChanged)
             {
-                _logger.LogInformation($"✅ No new commits found for {repository.Name}");
+                if (branchesChanged)
+                {
+                    _logger.LogInformation($"🔄 Branch structure changed. Triggering analysis to sync branches.");
+                }
+                else
+                {
+                    _logger.LogInformation($"🔄 Found {newCommits.Count} new commits to analyze");
+                }
+
+                if (repository.ConnectedByUserId == null)
+                {
+                    _logger.LogError($"Cannot analyze repository {repository.Name}: ConnectedByUserId is null");
+                    return;
+                }
                 
-                // Update last_refresh_at even if no new commits
-                await UpdateLastRefreshTime(repository.Id);
-                return;
+                await _analysis.AnalyzeRepository(
+                    repository.OwnerUsername,
+                    repository.Name,
+                    repository.Id,
+                    repository.ConnectedByUserId.Value
+                );
+
+                _logger.LogInformation($"✅ Refresh complete for {repository.Name}");
             }
-
-            _logger.LogInformation($"🔄 Found {newCommits.Count} new commits to analyze");
-
-            if (repository.ConnectedByUserId == null)
+            else
             {
-                _logger.LogError($"Cannot analyze repository {repository.Name}: ConnectedByUserId is null");
-                return;
+                _logger.LogInformation($"✅ No new commits or branch changes found for {repository.Name}");
+                await _db.UpdateLastRefreshTime(repository.Id);
             }
-
-            // Step 5: Re-run full analysis (it will process the new commits)
-            // The existing AnalyzeRepository will handle incremental processing
-            await _analysis.AnalyzeRepository(
-                repository.OwnerUsername,
-                repository.Name,
-                repository.Id,
-                repository.ConnectedByUserId.Value
-            );
 
             _logger.LogInformation($"✅ Refresh complete for {repository.Name}");
         }

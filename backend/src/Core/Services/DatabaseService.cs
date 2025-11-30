@@ -420,6 +420,16 @@ public class DatabaseService : IDatabaseService
         return branches;
     }
 
+    public async Task DeleteBranch(Guid branchId)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("DELETE FROM branches WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", branchId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task<Branch?> GetDefaultBranch(Guid repositoryId)
     {
         using var conn = GetConnection();

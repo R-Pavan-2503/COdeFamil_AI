@@ -30,6 +30,7 @@ public interface IDatabaseService
     Task<Branch?> GetDefaultBranch(Guid repositoryId);
     Task<Branch?> GetBranchByName(Guid repositoryId, string branchName);
     Task UpdateBranchHead(Guid branchId, string commitSha);
+    Task DeleteBranch(Guid branchId);
 
     // Commit-Branch Junction
     Task LinkCommitToBranch(Guid commitId, Guid branchId);

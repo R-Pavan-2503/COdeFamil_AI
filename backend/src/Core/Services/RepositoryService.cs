@@ -112,7 +112,32 @@ public class RepositoryService : IRepositoryService
             // This ensures repo.Branches["main"] points to the latest commit
             var refSpecs = new[] { "+refs/heads/*:refs/heads/*" };
             
-            Commands.Fetch(repo, remote.Name, refSpecs, null, "fetch");
+            var fetchOptions = new FetchOptions
+            {
+                Prune = true
+            };
+            
+            Commands.Fetch(repo, remote.Name, refSpecs, fetchOptions, "fetch");
+
+            // Manual Prune: Ensure local remote-tracking branches match remote exactly
+            var remoteRefs = repo.Network.ListReferences(remote).Select(r => r.CanonicalName).ToHashSet();
+            var localBranches = repo.Branches.ToList();
+
+            foreach (var branch in localBranches)
+            {
+                // Check for stale remote-tracking branches (e.g. refs/remotes/origin/deleted-branch)
+                if (branch.IsRemote && branch.Reference.CanonicalName.StartsWith("refs/remotes/origin/"))
+                {
+                    // Map refs/remotes/origin/branch -> refs/heads/branch
+                    var expectedRemoteRef = branch.Reference.CanonicalName.Replace("refs/remotes/origin/", "refs/heads/");
+                    
+                    // If the remote doesn't have this ref anymore, delete our local tracking branch
+                    if (!remoteRefs.Contains(expectedRemoteRef) && expectedRemoteRef != "refs/heads/HEAD")
+                    {
+                        repo.Branches.Remove(branch);
+                    }
+                }
+            }
         });
     }
 
