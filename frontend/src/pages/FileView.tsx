@@ -72,9 +72,15 @@ export default function FileView() {
             const analysisData = await api.getFileAnalysis(fileId!);
             setAnalysis(analysisData);
 
-            // Get file content
+            // Get file content - include branch parameter if present in URL
             try {
-                const contentResponse = await fetch(`http://localhost:5000/files/${fileId}/content`);
+                const params = new URLSearchParams(window.location.search);
+                const branch = params.get('branch');
+                const contentUrl = branch
+                    ? `http://localhost:5000/files/${fileId}/content?branchName=${encodeURIComponent(branch)}`
+                    : `http://localhost:5000/files/${fileId}/content`;
+
+                const contentResponse = await fetch(contentUrl);
                 if (contentResponse.ok) {
                     const contentData = await contentResponse.json();
                     setContent(contentData.content);

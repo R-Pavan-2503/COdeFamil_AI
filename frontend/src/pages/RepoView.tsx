@@ -437,7 +437,7 @@ export default function RepoView({ user }: RepoViewProps) {
                             }}>
                                 <FileTree
                                     files={files}
-                                    onFileClick={(fileId) => window.location.href = `/file/${fileId}`}
+                                    onFileClick={(fileId) => window.location.href = `/file/${fileId}?branch=${encodeURIComponent(selectedBranch)}`}
                                 />
                             </div>
                         )}

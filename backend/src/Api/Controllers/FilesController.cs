@@ -142,7 +142,10 @@ public class FilesController : ControllerBase
 
     // Get file content from Git repository
     [HttpGet("{fileId}/content")]
-    public async Task<IActionResult> GetFileContent(Guid fileId, [FromQuery] string? commitSha = null)
+    public async Task<IActionResult> GetFileContent(
+        Guid fileId, 
+        [FromQuery] string? commitSha = null, 
+        [FromQuery] string? branchName = null)
     {
         try
         {
@@ -155,10 +158,36 @@ public class FilesController : ControllerBase
             // Get the cloned repository
             using var repo = _repoService.GetRepository(repository.OwnerUsername, repository.Name);
 
-            // If no commit SHA specified, use HEAD
-            var commit = commitSha != null 
-                ? repo.Lookup(commitSha) as LibGit2Sharp.Commit
-                : repo.Head.Tip;
+            // Resolve commit with priority: commitSha > branchName > default HEAD
+            LibGit2Sharp.Commit? commit = null;
+            
+            if (!string.IsNullOrEmpty(commitSha))
+            {
+                // Priority 1: Specific commit SHA (for commit navigation)
+                commit = repo.Lookup(commitSha) as LibGit2Sharp.Commit;
+            }
+            else if (!string.IsNullOrEmpty(branchName))
+            {
+                // Priority 2: Branch name - resolve to branch tip
+                var normalizedBranchName = branchName.Replace("origin/", "");
+                var branch = repo.Branches[normalizedBranchName] 
+                             ?? repo.Branches[$"origin/{normalizedBranchName}"];
+                
+                if (branch != null)
+                {
+                    commit = branch.Tip;
+                }
+                else
+                {
+                    _logger.LogWarning($"Branch '{branchName}' not found, falling back to HEAD");
+                    commit = repo.Head.Tip;
+                }
+            }
+            else
+            {
+                // Priority 3: Default to HEAD (backward compatibility)
+                commit = repo.Head.Tip;
+            }
 
             if (commit == null) return NotFound(new { error = "Commit not found" });
 
