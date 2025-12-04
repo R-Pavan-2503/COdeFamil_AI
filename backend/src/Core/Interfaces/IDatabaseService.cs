@@ -68,6 +68,7 @@ public interface IDatabaseService
     // File Ownership
     Task UpsertFileOwnership(FileOwnership ownership);
     Task<List<FileOwnership>> GetFileOwnership(Guid fileId);
+    Task<string?> GetMostActiveAuthorForFile(Guid fileId);
 
     // Pull Requests
     Task<PullRequest?> GetPullRequestByNumber(Guid repositoryId, int prNumber);

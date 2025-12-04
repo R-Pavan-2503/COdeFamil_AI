@@ -1080,6 +1080,31 @@ public class DatabaseService : IDatabaseService
         return ownerships;
     }
 
+    public async Task<string?> GetMostActiveAuthorForFile(Guid fileId)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand(
+            @"SELECT c.author_name, COUNT(*) as change_count
+              FROM file_changes fc
+              JOIN commits c ON fc.commit_id = c.id
+              WHERE fc.file_id = @fileId AND c.author_name IS NOT NULL
+              GROUP BY c.author_name
+              ORDER BY change_count DESC
+              LIMIT 1",
+            conn);
+
+        cmd.Parameters.AddWithValue("fileId", fileId);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return reader.GetString(0);
+        }
+        return null;
+    }
+
     // Pull Requests
     public async Task<PullRequest?> GetPullRequestByNumber(Guid repositoryId, int prNumber)
     {

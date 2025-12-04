@@ -88,12 +88,38 @@ public class FilesController : ControllerBase
             }
         }
 
-        // Get ownership details with author names
-        var ownershipDetails = ownership.Select(own => new
+        // Get ownership details with author names AND user profile data (avatars, emails)
+        // Normalize semantic scores to percentages (0-1 range) so they add up to 100%
+        var ownershipDetails = new List<object>();
+        
+        // Calculate total semantic score for normalization
+        var totalSemanticScore = ownership
+            .Where(o => o.SemanticScore.HasValue)
+            .Sum(o => (double)o.SemanticScore.Value);
+        
+        foreach (var own in ownership)
         {
-            username = own.AuthorName,
-            semanticScore = own.SemanticScore.HasValue ? Math.Round((double)own.SemanticScore.Value, 2) : 0
-        }).ToList();
+            var user = await _db.GetUserByAuthorName(own.AuthorName);
+            
+            // Normalize the score: divide by total so all scores sum to 1.0 (100%)
+            var normalizedScore = 0.0;
+            if (totalSemanticScore > 0 && own.SemanticScore.HasValue)
+            {
+                normalizedScore = Math.Round((double)own.SemanticScore.Value / totalSemanticScore, 4);
+            }
+            
+            ownershipDetails.Add(new
+            {
+                authorName = own.AuthorName,
+                semanticScore = normalizedScore, // Now returns 0-1 range (e.g., 0.65 = 65%)
+                avatarUrl = user?.AvatarUrl,
+                email = user?.Email,
+                userId = user?.Id.ToString() // For backward compatibility
+            });
+        }
+
+        // Calculate most frequent author from file changes
+        var mostFrequentAuthor = await _db.GetMostActiveAuthorForFile(fileId);
 
         return Ok(new
         {
@@ -101,12 +127,12 @@ public class FilesController : ControllerBase
             filePath = file.FilePath,
             totalLines = file.TotalLines,
             purpose = "Semantic summary will be generated from embeddings", // TODO: Generate from embeddings
-            owners = ownershipDetails,
+            ownership = ownershipDetails,
             dependencies = dependencyDetails,
             dependents = dependentDetails,
             semanticNeighbors = similarFiles.Select(f => new { filePath = f.FilePath }),
             changeCount = changes.Count,
-            mostFrequentAuthor = "N/A", // TODO: Calculate from changes
+            mostFrequentAuthor = mostFrequentAuthor ?? "N/A",
             lastModified = changes.Any() ? await GetLastModifiedDate(fileId) : (DateTime?)null,
             isInOpenPr = false // TODO: Check against open PRs
         });

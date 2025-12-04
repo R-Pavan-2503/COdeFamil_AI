@@ -539,6 +539,10 @@ public class RepositoriesController : ControllerBase
             var file = await _db.GetFileById(fileId);
             if (file == null) return NotFound();
 
+            // Get file embeddings for similarity calculation
+            var fileEmbeddings = await _db.GetEmbeddingsByFile(fileId);
+            float[]? currentFileEmbedding = fileEmbeddings.Any() ? fileEmbeddings.First().Embedding : null;
+
             // Get file changes history
             var fileChanges = await _db.GetFileChangesByFile(fileId);
             var changeHistory = fileChanges
@@ -567,27 +571,38 @@ public class RepositoriesController : ControllerBase
                 var targetFile = await _db.GetFileById(dep.TargetFileId);
                 if (targetFile != null)
                 {
+                    // Calculate semantic similarity score
+                    var semanticScore = await CalculateSemanticSimilarity(currentFileEmbedding, dep.TargetFileId);
+                    
                     dependencyList.Add(new {
                         TargetFileId = dep.TargetFileId,
                         TargetPath = targetFile.FilePath,
                         DependencyType = dep.DependencyType ?? "import",
-                        Score = dep.Strength ?? 1 // Use Strength as score
+                        Score = semanticScore ?? (dep.Strength ?? 1) // Use semantic score, fallback to strength
                     });
                 }
             }
 
-            // Get indirect dependencies (recursive)
+            // Get indirect dependencies (recursive) with semantic scores
+            // Only include files with semantic score > 0.7 (highly similar)
             var allDependencies = await GetAllDependenciesRecursive(fileId, new HashSet<Guid>());
-            var indirectDependencyList = allDependencies
-                .Where(d => !directDependencyIds.Contains(d.FileId))
-                .Select(d => new {
-                    TargetFileId = d.FileId,
-                    TargetPath = d.FilePath,
-                    DependencyType = "indirect",
-                    Score = 0.5 // Placeholder score for indirect
-                })
-                .DistinctBy(d => d.TargetFileId)
-                .ToList();
+            var indirectDependencyList = new List<object>();
+            
+            foreach (var d in allDependencies.Where(d => !directDependencyIds.Contains(d.FileId)).DistinctBy(d => d.FileId))
+            {
+                var semanticScore = await CalculateSemanticSimilarity(currentFileEmbedding, d.FileId);
+                
+                // Only add if semantic score > 0.7 (highly similar files)
+                if (semanticScore.HasValue && semanticScore.Value > 0.7)
+                {
+                    indirectDependencyList.Add(new {
+                        TargetFileId = d.FileId,
+                        TargetPath = d.FilePath,
+                        DependencyType = "indirect",
+                        Score = semanticScore.Value
+                    });
+                }
+            }
 
             // Get dependents (files that depend on this file)
             var dependents = await _db.GetDependentsForFile(fileId);
@@ -600,27 +615,38 @@ public class RepositoriesController : ControllerBase
                 var sourceFile = await _db.GetFileById(dep.SourceFileId);
                 if (sourceFile != null)
                 {
+                    // Calculate semantic similarity score
+                    var semanticScore = await CalculateSemanticSimilarity(currentFileEmbedding, dep.SourceFileId);
+                    
                     dependentList.Add(new {
                         SourceFileId = dep.SourceFileId,
                         SourcePath = sourceFile.FilePath,
                         DependencyType = dep.DependencyType ?? "import",
-                        Score = dep.Strength ?? 1 // Use Strength as score
+                        Score = semanticScore ?? (dep.Strength ?? 1) // Use semantic score, fallback to strength
                     });
                 }
             }
 
-            // Get blast radius (recursive dependents)
+            // Get blast radius (recursive dependents) with semantic scores
+            // Only include files with semantic score > 0.7 (highly similar)
             var allDependents = await GetAllDependentsRecursive(fileId, new HashSet<Guid>());
-            var blastRadiusList = allDependents
-                .Where(d => !directDependentIds.Contains(d.FileId))
-                .Select(d => new {
-                    SourceFileId = d.FileId,
-                    SourcePath = d.FilePath,
-                    DependencyType = "indirect",
-                    Score = 0.5 // Placeholder score for indirect
-                })
-                .DistinctBy(d => d.SourceFileId)
-                .ToList();
+            var blastRadiusList = new List<object>();
+            
+            foreach (var d in allDependents.Where(d => !directDependentIds.Contains(d.FileId)).DistinctBy(d => d.FileId))
+            {
+                var semanticScore = await CalculateSemanticSimilarity(currentFileEmbedding, d.FileId);
+                
+                // Only add if semantic score > 0.7 (highly similar files)
+                if (semanticScore.HasValue && semanticScore.Value > 0.7)
+                {
+                    blastRadiusList.Add(new {
+                        SourceFileId = d.FileId,
+                        SourcePath = d.FilePath,
+                        DependencyType = "indirect",
+                        Score = semanticScore.Value
+                    });
+                }
+            }
 
             // Get semantic neighbors (files with similar embeddings)
             var embeddings = await _db.GetEmbeddingsByFile(fileId);
@@ -723,6 +749,41 @@ public class RepositoriesController : ControllerBase
             }
         }
         return result;
+    }
+
+    private async Task<double?> CalculateSemanticSimilarity(float[]? sourceEmbedding, Guid targetFileId)
+    {
+        if (sourceEmbedding == null) return null;
+
+        // Get target file embedding
+        var targetEmbeddings = await _db.GetEmbeddingsByFile(targetFileId);
+        if (!targetEmbeddings.Any() || targetEmbeddings.First().Embedding == null)
+            return null;
+
+        var targetEmbedding = targetEmbeddings.First().Embedding!;
+
+        // Calculate cosine similarity
+        double dotProduct = 0;
+        double sourceNorm = 0;
+        double targetNorm = 0;
+
+        for (int i = 0; i < Math.Min(sourceEmbedding.Length, targetEmbedding.Length); i++)
+        {
+            dotProduct += sourceEmbedding[i] * targetEmbedding[i];
+            sourceNorm += sourceEmbedding[i] * sourceEmbedding[i];
+            targetNorm += targetEmbedding[i] * targetEmbedding[i];
+        }
+
+        sourceNorm = Math.Sqrt(sourceNorm);
+        targetNorm = Math.Sqrt(targetNorm);
+
+        if (sourceNorm == 0 || targetNorm == 0) return null;
+
+        // Cosine similarity: ranges from -1 to 1, but for code it's typically 0 to 1
+        var cosineSimilarity = dotProduct / (sourceNorm * targetNorm);
+        
+        // Round to 2 decimal places for readability
+        return Math.Round(Math.Max(0, cosineSimilarity), 2);
     }
 
     private class FileRef

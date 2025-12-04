@@ -370,9 +370,22 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                                     borderRadius: '8px',
                                     border: '1px solid #30363d'
                                 }}>
+                                    {owner.avatarUrl && (
+                                        <img
+                                            src={owner.avatarUrl}
+                                            alt={owner.authorName}
+                                            style={{
+                                                width: '48px',
+                                                height: '48px',
+                                                borderRadius: '50%',
+                                                border: '2px solid #3fb950',
+                                                objectFit: 'cover'
+                                            }}
+                                        />
+                                    )}
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '14px', color: '#c9d1d9' }}>
-                                            User {owner.userId.substring(0, 8)}...
+                                            {owner.authorName || 'Unknown'}
                                         </div>
                                         <div style={{
                                             width: '100%',
@@ -485,8 +498,8 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                         border: '1px solid #30363d',
                         textAlign: 'center'
                     }}>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#d29922', marginBottom: '4px' }}>
-                            {analysis.mostFrequentAuthor ? analysis.mostFrequentAuthor.substring(0, 10) + '...' : 'N/A'}
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#d29922', marginBottom: '4px' }}>
+                            {analysis.mostFrequentAuthor && analysis.mostFrequentAuthor !== 'N/A' ? analysis.mostFrequentAuthor : 'N/A'}
                         </div>
                         <div style={{ fontSize: '12px', color: '#8b949e' }}>Most Active Author</div>
                     </div>
@@ -522,16 +535,39 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                             padding: '8px 12px',
                             background: '#0d1117',
                             borderRadius: '20px',
-                            border: '1px solid #30363d'
-                        }}>
-                            <div style={{
-                                width: '24px',
-                                height: '24px',
-                                borderRadius: '50%',
-                                background: `conic-gradient(#3fb950 ${owner.semanticScore * 360}deg, #30363d 0deg)`
-                            }} />
-                            <span style={{ fontSize: '13px', color: '#c9d1d9' }}>
-                                User {owner.userId.substring(0, 6)}
+                            border: '1px solid #30363d',
+                            position: 'relative'
+                        }} title={owner.email || owner.authorName}>
+                            {owner.avatarUrl ? (
+                                <img
+                                    src={owner.avatarUrl}
+                                    alt={owner.authorName}
+                                    style={{
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '50%',
+                                        border: '2px solid #3fb950',
+                                        objectFit: 'cover'
+                                    }}
+                                />
+                            ) : (
+                                <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    background: `conic-gradient(#3fb950 ${owner.semanticScore * 360}deg, #30363d 0deg)`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold',
+                                    color: '#3fb950'
+                                }}>
+                                    {owner.authorName?.charAt(0).toUpperCase() || '?'}
+                                </div>
+                            )}
+                            <span style={{ fontSize: '13px', color: '#c9d1d9', fontWeight: 500 }}>
+                                {owner.authorName || 'Unknown'}
                             </span>
                         </div>
                     ))}
