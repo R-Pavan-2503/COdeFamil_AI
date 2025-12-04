@@ -1232,6 +1232,17 @@ public class DatabaseService : IDatabaseService
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task DeletePrFilesChangedByPrId(Guid prId)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        using var cmd = new NpgsqlCommand("DELETE FROM pr_files_changed WHERE pr_id = @prId", conn);
+        cmd.Parameters.AddWithValue("prId", prId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     // PR Files
     public async Task CreatePrFileChanged(PrFileChanged prFile)
     {
@@ -1272,6 +1283,78 @@ public class DatabaseService : IDatabaseService
             });
         }
         return files;
+    }
+
+    public async Task<List<PrConflict>> GetPotentialConflicts(Guid prId, Guid repositoryId)
+    {
+        using var conn = GetConnection();
+        await conn.OpenAsync();
+
+        // Step 1: Get all files in the current PR
+        var currentPrFiles = new List<Guid>();
+        using (var cmd = new NpgsqlCommand("SELECT file_id FROM pr_files_changed WHERE pr_id = @prId", conn))
+        {
+            cmd.Parameters.AddWithValue("prId", prId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                currentPrFiles.Add(reader.GetGuid(0));
+            }
+        }
+
+        if (currentPrFiles.Count == 0)
+            return new List<PrConflict>();
+
+        // Step 2: Find other open PRs with overlapping files
+        var conflicts = new Dictionary<Guid, PrConflict>();
+
+        using (var cmd = new NpgsqlCommand(@"
+            SELECT DISTINCT pr.id, pr.pr_number, pr.title, f.file_path
+            FROM pr_files_changed pfc
+            JOIN pull_requests pr ON pfc.pr_id = pr.id
+            JOIN repository_files f ON pfc.file_id = f.id
+            WHERE pfc.file_id = ANY(@fileIds)
+              AND pr.state = 'open'
+              AND pr.id != @prId
+              AND pr.repository_id = @repositoryId
+            ORDER BY pr.pr_number", conn))
+        {
+            cmd.Parameters.AddWithValue("fileIds", currentPrFiles.ToArray());
+            cmd.Parameters.AddWithValue("prId", prId);
+            cmd.Parameters.AddWithValue("repositoryId", repositoryId);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var conflictPrId = reader.GetGuid(0);
+                var prNumber = reader.GetInt32(1);
+                var title = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var filePath = reader.GetString(3);
+
+                if (!conflicts.ContainsKey(conflictPrId))
+                {
+                    conflicts[conflictPrId] = new PrConflict
+                    {
+                        ConflictingPrId = conflictPrId,
+                        PrNumber = prNumber,
+                        Title = title,
+                        OverlappingFiles = new List<string>(),
+                        OverlapCount = 0
+                    };
+                }
+
+                conflicts[conflictPrId].OverlappingFiles.Add(filePath);
+                conflicts[conflictPrId].OverlapCount++;
+            }
+        }
+
+        // Step 3: Calculate conflict percentages
+        foreach (var conflict in conflicts.Values)
+        {
+            conflict.ConflictPercentage = Math.Round((decimal)conflict.OverlapCount / currentPrFiles.Count * 100, 1);
+        }
+
+        return conflicts.Values.OrderByDescending(c => c.OverlapCount).ToList();
     }
 
     // Webhook Queue

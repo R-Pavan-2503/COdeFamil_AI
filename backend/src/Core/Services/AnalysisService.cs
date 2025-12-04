@@ -690,11 +690,18 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
 {
    try
     {
+        _logger.LogInformation($"📋 Attempting to fetch PRs for: {owner}/{repo}");
+        _logger.LogInformation($"   Repository ID: {repositoryId}");
+        
         // Fetch ALL pull requests (open and closed)
         var openRequest = new Octokit.PullRequestRequest { State = Octokit.ItemStateFilter.Open };
         var closedRequest = new Octokit.PullRequestRequest { State = Octokit.ItemStateFilter.Closed };
         
+        _logger.LogInformation($"   🔍 Fetching open PRs from GitHub API...");
         var openPRs = await _github.GetPullRequests(owner, repo, openRequest);
+        _logger.LogInformation($"   ✅ Fetched {openPRs.Count} open PRs");
+        
+        _logger.LogInformation($"   🔍 Fetching closed PRs from GitHub API...");
         var closedPRs = await _github.GetPullRequests(owner, repo, closedRequest);
         
         var allPRs = openPRs.Concat(closedPRs).ToList();
@@ -717,6 +724,25 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
                         await _db.UpdatePullRequestTitle(existing.Id, pr.Title);
                         _logger.LogInformation($"   Updated title for PR #{pr.Number}");
                     }
+                    
+                    // ✨ NEW: Sync PR state from GitHub
+                    var githubState = pr.State.StringValue; // "open", "closed"
+                    var dbState = existing.State ?? "unknown";
+                    
+                    if (!githubState.Equals(dbState, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // State has changed - update database
+                        await _db.UpdatePullRequestState(existing.Id, githubState);
+                        _logger.LogInformation($"   ✅ Updated PR #{pr.Number} state: {dbState} → {githubState}");
+                        
+                        // If PR was closed/merged, clean up pr_files_changed table
+                        if (githubState.Equals("closed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await _db.DeletePrFilesChangedByPrId(existing.Id);
+                            _logger.LogInformation($"   🧹 Cleaned up pr_files_changed for closed PR #{pr.Number}");
+                        }
+                    }
+                    
                     skippedCount++;
                     continue;
                 }
@@ -802,7 +828,14 @@ private async Task FetchAndStorePullRequests(string owner, string repo, Guid rep
     }
     catch (Exception ex)
     {
-        _logger.LogError($"❌ Failed to fetch pull requests: {ex.Message}");
+        _logger.LogError($"❌ Failed to fetch pull requests for {owner}/{repo}");
+        _logger.LogError($"   Error Type: {ex.GetType().Name}");
+        _logger.LogError($"   Error Message: {ex.Message}");
+        if (ex.InnerException != null)
+        {
+            _logger.LogError($"   Inner Exception: {ex.InnerException.Message}");
+        }
+        _logger.LogError($"   Stack Trace: {ex.StackTrace}");
         // Don't throw - PR fetching is not critical for analysis
     }
 }

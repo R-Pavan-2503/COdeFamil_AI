@@ -202,6 +202,161 @@ export default function PullRequestView({ user }: PullRequestViewProps) {
                 </div>
             </div>
 
+            {/* ✨ NEW: Recommended Reviewers */}
+            {prDetails.recommendedReviewers && prDetails.recommendedReviewers.length > 0 && (
+                <div className="card" style={{ marginBottom: '24px', padding: '16px' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: '8px', fontSize: '16px', color: '#c9d1d9' }}>
+                        🎯 Recommended Reviewers
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#8b949e', marginBottom: '16px' }}>
+                        Based on file ownership across all changed files
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {prDetails.recommendedReviewers.map((reviewer: any, idx: number) => (
+                            <div key={idx} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '12px',
+                                background: '#0d1117',
+                                borderRadius: '8px',
+                                border: '1px solid #30363d'
+                            }}>
+                                {reviewer.avatarUrl ? (
+                                    <img
+                                        src={reviewer.avatarUrl}
+                                        alt={reviewer.authorName}
+                                        style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '50%',
+                                            border: '2px solid #3fb950'
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '50%',
+                                        background: '#3fb950',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '16px',
+                                        fontWeight: 'bold',
+                                        color: 'white'
+                                    }}>
+                                        {reviewer.authorName?.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 600, color: '#c9d1d9', marginBottom: '4px' }}>
+                                        {reviewer.authorName}
+                                    </div>
+                                    <div style={{
+                                        width: '100%',
+                                        height: '8px',
+                                        background: '#21262d',
+                                        borderRadius: '4px',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            width: `${reviewer.percentage}%`,
+                                            height: '100%',
+                                            background: '#3fb950',
+                                            transition: 'width 0.3s ease'
+                                        }} />
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3fb950' }}>
+                                        {reviewer.percentage.toFixed(1)}%
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#8b949e' }}>
+                                        {reviewer.filesContributed} {reviewer.filesContributed === 1 ? 'file' : 'files'}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ✨ NEW: Potential Merge Conflicts */}
+            <div className="card" style={{ marginBottom: '24px', padding: '16px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '8px', fontSize: '16px', color: '#c9d1d9' }}>
+                    ⚠️ Potential Merge Conflicts
+                </h3>
+                {prDetails.potentialConflicts && prDetails.potentialConflicts.length > 0 ? (
+                    <>
+                        <p style={{ fontSize: '12px', color: '#f85149', marginBottom: '16px' }}>
+                            Found {prDetails.potentialConflicts.length} {prDetails.potentialConflicts.length === 1 ? 'PR' : 'PRs'} with overlapping files
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {prDetails.potentialConflicts.map((conflict: any, idx: number) => (
+                                <div key={idx} style={{
+                                    padding: '12px',
+                                    background: '#da363320',
+                                    borderRadius: '8px',
+                                    border: '1px solid #f85149'
+                                }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: '8px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <strong style={{ color: '#c9d1d9' }}>PR #{conflict.prNumber}</strong>
+                                            <span style={{
+                                                padding: '2px 8px',
+                                                borderRadius: '6px',
+                                                fontSize: '11px',
+                                                background: '#f85149',
+                                                color: 'white',
+                                                fontWeight: 600
+                                            }}>
+                                                {conflict.conflictPercentage.toFixed(0)}% overlap
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#8b949e', marginBottom: '8px' }}>
+                                        {conflict.title}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#c9d1d9' }}>
+                                        <strong>Overlapping files:</strong>
+                                        <div style={{
+                                            marginTop: '6px',
+                                            padding: '8px',
+                                            background: '#0d1117',
+                                            borderRadius: '6px',
+                                            fontFamily: 'monospace'
+                                        }}>
+                                            {conflict.overlappingFiles.map((file: string, fileIdx: number) => (
+                                                <div key={fileIdx} style={{ padding: '2px 0', color: '#f85149' }}>
+                                                    • {file}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <div style={{
+                        textAlign: 'center',
+                        padding: '32px',
+                        color: '#3fb950'
+                    }}>
+                        <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
+                        <div style={{ fontSize: '14px', fontWeight: 600 }}>
+                            No conflicts detected with other open PRs
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Files Changed */}
             <div>
                 <h2 style={{ marginBottom: '16px' }}>Files Changed ({prDetails.filesChanged.length})</h2>
