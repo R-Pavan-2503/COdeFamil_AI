@@ -33,6 +33,8 @@ public class GeminiService : IGeminiService
 
         var requestBody = new
         {
+            model = "models/text-embedding-004",
+
             content = new
             {
                 parts = new[] { new { text } }

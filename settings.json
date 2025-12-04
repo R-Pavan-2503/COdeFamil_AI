@@ -16,7 +16,7 @@
     "PrivateKeyPath": "/secrets/codefamily.pem"
   },
   "Gemini": {
-    "ApiKey": "AIzaSyDiqlAlRgEtydErVxVO-b0ZFdgjFK9hg10"
+    "ApiKey": "AIzaSyBfYCgPbYuDG4e9WdBczLSeBMBfc1-pOJo"
   },
   "Supabase": {
     "Url": "https://zhagdkiukasamywvhvvl.supabase.co",
