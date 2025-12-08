@@ -134,7 +134,7 @@ public class FilesController : ControllerBase
             changeCount = changes.Count,
             mostFrequentAuthor = mostFrequentAuthor ?? "N/A",
             lastModified = changes.Any() ? await GetLastModifiedDate(fileId) : (DateTime?)null,
-            isInOpenPr = false // TODO: Check against open PRs
+            isInOpenPr = await _db.IsFileInOpenPr(fileId)
         });
     }
 
