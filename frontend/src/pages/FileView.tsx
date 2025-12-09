@@ -17,6 +17,9 @@ export default function FileView() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
 
+    const [commitHistory, setCommitHistory] = useState<any[]>([]);
+    const [currentCommitSha, setCurrentCommitSha] = useState<string | null>(null);
+
     // Helper function to get language from file path
     const getLanguageFromPath = (filePath: string): string => {
         const extension = filePath.split('.').pop()?.toLowerCase();
@@ -72,31 +75,83 @@ export default function FileView() {
             const analysisData = await api.getFileAnalysis(fileId!);
             setAnalysis(analysisData);
 
-            // Get file content - include branch parameter if present in URL
+            // Load commit history
             try {
-                const params = new URLSearchParams(window.location.search);
-                const branch = params.get('branch');
-                const contentUrl = branch
-                    ? `http://localhost:5000/files/${fileId}/content?branchName=${encodeURIComponent(branch)}`
-                    : `http://localhost:5000/files/${fileId}/content`;
-
-                const contentResponse = await fetch(contentUrl);
-                if (contentResponse.ok) {
-                    const contentData = await contentResponse.json();
-                    setContent(contentData.content);
-                } else {
-                    setContent('// Failed to load file content');
+                const historyRes = await fetch(`http://localhost:5000/files/${fileId}/commits`);
+                if (historyRes.ok) {
+                    const history = await historyRes.json();
+                    setCommitHistory(history);
+                    // Default to latest commit (first in list) if no specific SHA requested
+                    if (history.length > 0 && !currentCommitSha) {
+                        setCurrentCommitSha(history[0].sha);
+                    }
                 }
             } catch (e) {
-                console.error('Failed to fetch content:', e);
-                setContent('// Failed to load file content');
+                console.error('Failed to load history:', e);
             }
+
+            // Get file content - include branch parameter if present in URL
+            await fetchContent();
 
         } catch (err: any) {
             console.error('Failed to load file:', err);
             setError(err.message || 'Failed to load file');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchContent = async (sha?: string) => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const branch = params.get('branch');
+
+            let contentUrl = `http://localhost:5000/files/${fileId}/content`;
+
+            if (sha) {
+                contentUrl += `?commitSha=${sha}`;
+            } else if (branch) {
+                contentUrl += `?branchName=${encodeURIComponent(branch)}`;
+            }
+
+            const contentResponse = await fetch(contentUrl);
+            if (contentResponse.ok) {
+                const contentData = await contentResponse.json();
+                setContent(contentData.content);
+                if (contentData.commitSha) {
+                    setCurrentCommitSha(contentData.commitSha);
+                }
+            } else {
+                setContent('// Failed to load file content');
+            }
+        } catch (e) {
+            console.error('Failed to fetch content:', e);
+            setContent('// Failed to load file content');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePreviousCommit = () => {
+        if (!commitHistory.length) return;
+        const currentIndex = currentCommitSha ? commitHistory.findIndex(c => c.sha === currentCommitSha) : -1;
+
+        if (currentIndex === -1) {
+            // If current commit is not in history (likely newer), go to the latest known commit (index 0)
+            fetchContent(commitHistory[0].sha);
+        } else if (currentIndex < commitHistory.length - 1) {
+            const prevCommit = commitHistory[currentIndex + 1]; // Older commit
+            fetchContent(prevCommit.sha);
+        }
+    };
+
+    const handleNextCommit = () => {
+        if (!commitHistory.length || !currentCommitSha) return;
+        const currentIndex = commitHistory.findIndex(c => c.sha === currentCommitSha);
+        if (currentIndex > 0) {
+            const nextCommit = commitHistory[currentIndex - 1]; // Newer commit
+            fetchContent(nextCommit.sha);
         }
     };
 
@@ -129,6 +184,11 @@ export default function FileView() {
         return <div className="container">File not found</div>;
     }
 
+    const currentIndex = currentCommitSha ? commitHistory.findIndex(c => c.sha === currentCommitSha) : -1;
+    // Allow previous if we are at a known index < length-1 OR if we are at an unknown index (assuming it's newer)
+    const canGoPrevious = (currentIndex !== -1 && currentIndex < commitHistory.length - 1) || (currentIndex === -1 && commitHistory.length > 0);
+    const canGoNext = currentIndex !== -1 && currentIndex > 0;
+
     return (
         <div className="container">
             <BackButton />
@@ -140,6 +200,19 @@ export default function FileView() {
                     <span style={{ color: '#8b949e', fontSize: '14px' }}>
                         {file.totalLines} lines
                     </span>
+                )}
+                {currentCommitSha && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#8b949e', fontFamily: 'monospace' }}>
+                        <span style={{ color: '#fff' }}>{currentCommitSha.substring(0, 7)}</span>
+                        {commitHistory.find(c => c.sha === currentCommitSha) && (
+                            <span style={{ marginLeft: '12px' }}>
+                                {commitHistory.find(c => c.sha === currentCommitSha)?.message}
+                                <span style={{ color: '#8b949e', marginLeft: '8px' }}>
+                                    • {new Date(commitHistory.find(c => c.sha === currentCommitSha)?.committedAt || '').toLocaleDateString()}
+                                </span>
+                            </span>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -209,25 +282,40 @@ export default function FileView() {
                         {content}
                     </SyntaxHighlighter>
 
-                    <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                        <button className="btn" style={{ background: '#21262d' }}>
+                    <div style={{ marginTop: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                            className="btn"
+                            style={{
+                                background: canGoPrevious ? '#21262d' : '#161b22',
+                                color: canGoPrevious ? '#c9d1d9' : '#484f58',
+                                cursor: canGoPrevious ? 'pointer' : 'not-allowed',
+                                border: '1px solid #30363d'
+                            }}
+                            onClick={handlePreviousCommit}
+                            disabled={!canGoPrevious}
+                        >
                             ← Previous Commit
                         </button>
-                        <button className="btn" style={{ background: '#21262d' }}>
+                        <button
+                            className="btn"
+                            style={{
+                                background: canGoNext ? '#21262d' : '#161b22',
+                                color: canGoNext ? '#c9d1d9' : '#484f58',
+                                cursor: canGoNext ? 'pointer' : 'not-allowed',
+                                border: '1px solid #30363d'
+                            }}
+                            onClick={handleNextCommit}
+                            disabled={!canGoNext}
+                        >
                             Next Commit →
                         </button>
-                    </div>
-
-                    <div style={{
-                        marginTop: '24px',
-                        padding: '16px',
-                        background: '#161b22',
-                        border: '1px solid #30363d',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        color: '#8b949e'
-                    }}>
-                        💡 <strong>Note:</strong> Code navigation through commits will be fully functional once commit history integration is complete.
+                        {commitHistory.length > 0 && (
+                            <span style={{ fontSize: '12px', color: '#8b949e', marginLeft: '8px' }}>
+                                {currentIndex !== -1
+                                    ? `(Commit ${commitHistory.length - currentIndex} of ${commitHistory.length})`
+                                    : '(Latest Unindexed Commit)'}
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
