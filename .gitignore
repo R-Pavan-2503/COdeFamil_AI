@@ -59,6 +59,9 @@ packages/
 # ASP.NET scaffolding
 ScaffoldingReadMe.txt
 
+# Test data
+backend/src/Api/testdata/
+
 ##############################
 # FRONTEND (Node, React, Next, etc.)
 ##############################
