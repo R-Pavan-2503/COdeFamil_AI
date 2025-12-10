@@ -13,9 +13,14 @@ interface FileAnalysisProps {
 
 export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
     const [enhancedData, setEnhancedData] = useState<any>(null);
+    const [summary, setSummary] = useState<string | null>(null);
+    const [summaryLoading, setSummaryLoading] = useState(false);
+    const [summaryError, setSummaryError] = useState<string | null>(null);
+    const [chunkCount, setChunkCount] = useState<number>(0);
 
     useEffect(() => {
         loadEnhancedData();
+        fetchSummary();
     }, [file.id]);
 
     const loadEnhancedData = async () => {
@@ -27,6 +32,28 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
             }
         } catch (error) {
             console.error('Failed to load enhanced data:', error);
+        }
+    };
+
+    const fetchSummary = async () => {
+        setSummaryLoading(true);
+        setSummaryError(null);
+
+        try {
+            const response = await fetch(`http://localhost:5000/files/${file.id}/summary`);
+            const data = await response.json();
+
+            if (data.success) {
+                setSummary(data.summary);
+                setChunkCount(data.chunkCount || 0);
+            } else {
+                setSummaryError(data.message || data.error || 'Failed to generate summary');
+                setChunkCount(data.chunkCount || 0);
+            }
+        } catch (error) {
+            setSummaryError('Unable to fetch summary. Please try again.');
+        } finally {
+            setSummaryLoading(false);
         }
     };
 
@@ -46,6 +73,87 @@ export default function FileAnalysis({ file, analysis }: FileAnalysisProps) {
                     to { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
+
+            {/* File Summary Section */}
+            <div style={{
+                background: '#0d1117',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                padding: '16px',
+                marginBottom: '24px'
+            }}>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px'
+                }}>
+                    <h3 style={{
+                        margin: 0,
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#c9d1d9'
+                    }}>
+                        File Summary
+                    </h3>
+                    {!summaryLoading && (
+                        <button
+                            onClick={fetchSummary}
+                            style={{
+                                background: '#21262d',
+                                border: '1px solid #30363d',
+                                color: '#8b949e',
+                                padding: '4px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Refresh
+                        </button>
+                    )}
+                </div>
+
+                {summaryLoading && (
+                    <div style={{ color: '#8b949e', fontSize: '13px' }}>
+                        Generating summary...
+                    </div>
+                )}
+
+                {!summaryLoading && summary && (
+                    <div>
+                        <p style={{
+                            color: '#c9d1d9',
+                            fontSize: '13px',
+                            lineHeight: '1.6',
+                            margin: 0,
+                            marginBottom: '8px'
+                        }}>
+                            {summary}
+                        </p>
+                        <div style={{
+                            fontSize: '11px',
+                            color: '#6e7681',
+                            fontStyle: 'italic'
+                        }}>
+                            Generated from {chunkCount} code chunk{chunkCount !== 1 ? 's' : ''}
+                        </div>
+                    </div>
+                )}
+
+                {!summaryLoading && summaryError && (
+                    <div style={{
+                        color: '#f85149',
+                        fontSize: '13px',
+                        background: '#da363320',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #da3633'
+                    }}>
+                        {summaryError}
+                    </div>
+                )}
+            </div>
 
             {/* Header Stats - Key Metrics */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
